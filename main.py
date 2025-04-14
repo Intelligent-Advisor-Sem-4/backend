@@ -15,7 +15,7 @@ app.add_middleware(
 app.include_router(user.router)
 
 
-#
+
 @app.get("/")
 def welcome():
-    return "Welcome to Jupiter HRMS! Still Testing ! Test -1000 "
+    return "Welcome to Financial Advisor sem 4! Still Testing ! Test -1000 "

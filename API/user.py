@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from core.middleware import logger
 from core.security import pwd_context, verify_password, create_access_token, get_current_active_user
 from db.db import get_db
-from models import UserModel
+from models.User import UserModel
 from classes.User import User, UserLogin, LoginResponse, UpdatePassword
 
 router = APIRouter()
