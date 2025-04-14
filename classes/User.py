@@ -3,7 +3,7 @@ from pydantic import BaseModel
 class User(BaseModel):
     username: str
     password: str
-    employee_id: str
+    user_id: str
     access_level :str
     class Config:
         from_attributes = True
@@ -28,7 +28,7 @@ class LoginResponse(BaseModel):
 
 class UserResponse(BaseModel):
     username: str
-    employee_id: str
+    user_id: str
     access_level: str
 
 

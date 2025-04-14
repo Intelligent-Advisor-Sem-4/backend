@@ -10,6 +10,6 @@ class UserModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
-    employee_id = Column(Integer)
+    user_id = Column(Integer)
     access_level = Column(String(50))
     created_at = Column(DateTime, default=datetime.utcnow)
