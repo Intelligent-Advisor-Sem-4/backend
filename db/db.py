@@ -1,13 +1,11 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Replace these values with your actual RDS credentials
-DATABASE_URL = "mysql+mysqlconnector://USERNAME:PASSWORD@financial-assistant.csvgkq8kwtb8.us-east-1.rds.amazonaws.com/DB_NAME"
+DATABASE_URL = "mysql+mysqlconnector://faadmin:ZXftcOadcFLjYIo42M6i@financial-assistant.csvgkq8kwtb8.us-east-1.rds.amazonaws.com/financial-assistant"
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
 def get_db():
