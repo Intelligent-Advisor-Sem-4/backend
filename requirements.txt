@@ -38,5 +38,12 @@ pydantic_core==2.20.1
 Pygments==2.18.0
 PyJWT==2.9.0
 PyMySQL==1.1.1
+yfinance
+numpy
+tensorflow
+matplotlib
+scikit-learn
+requests
+pandas
 
 
