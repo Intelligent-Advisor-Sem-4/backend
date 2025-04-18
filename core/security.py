@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from classes.security  import Token,TokenData,User,UserInDB
-from db.db import get_db
+from db.dbConnect import get_db
 
 
 router = APIRouter()
