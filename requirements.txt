@@ -45,5 +45,8 @@ matplotlib
 scikit-learn
 requests
 pandas
+python-dotenv
+psycopg2-binary
+SQLAlchemy
 
 
