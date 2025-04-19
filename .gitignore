@@ -5,4 +5,6 @@ env/
 .vscode/
 *.pyc
 *.pyo
+.env
+.env.personal
 
