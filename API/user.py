@@ -1,32 +1,19 @@
+from datetime import date, datetime, timezone
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, status, Body
+from passlib.context import CryptContext
+from pydantic.v1 import EmailStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from core.middleware import logger
 from core.security import pwd_context, verify_password, create_access_token, get_current_active_user
 from db.dbConnect import get_db
-from models.User import UserModel
-from classes.User import User, UserLogin, LoginResponse, UpdatePassword
+from models import UserModel
+from classes.User import User, UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
+from models.models import Gender, AccessLevel
 
-router = APIRouter()
-
-@router.post("/user/reg", status_code=status.HTTP_201_CREATED)
-async def create_user(user: User, db: Session = Depends(get_db)):
-    db_user = db.query(UserModel).filter(UserModel.username == user.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-
-    hashed_password = pwd_context.hash(user.password)
-    new_user = UserModel(
-        username=user.username,
-        password=hashed_password,
-        employee_id=user.employee_id,
-        access_level=user.access_level
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    logger.info(f"User {user.username} registered successfully.")
-    return {"message": "User registered successfully", "user": new_user.username}
+router = APIRouter(prefix='/auth')
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -38,10 +25,11 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
 
     access_token = create_access_token(data={"sub": db_user.username})
 
-    return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level)
+    return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level, user_id=db_user.id,
+                         name=db_user.name, email=EmailStr(db_user.email), avatar=db_user.avatar)
 
 
-@router.put("/user/{username}", status_code=status.HTTP_200_OK)
+@router.put("/update-password/{username}", status_code=status.HTTP_200_OK)
 async def update_user_password(
         username: str,
         password_: UpdatePassword = Body(...),
@@ -57,3 +45,62 @@ async def update_user_password(
 
     logger.info(f"Password updated for user {username}")
     return {"message": "Password updated successfully"}
+
+
+@router.post("/user/reg", status_code=status.HTTP_201_CREATED, response_model=RegistrationResponse)
+async def register_user(user_data: UserRegistration, db: Session = Depends(get_db)):
+    # Check if username already exists
+    existing_username = db.query(UserModel).filter(UserModel.username == user_data.username).first()
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already registered"
+        )
+
+    # Check if email already exists
+    existing_email = db.query(UserModel).filter(UserModel.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered"
+        )
+
+    # Hash the password
+    hashed_password = pwd_context.hash(user_data.password)
+
+    # Create new user
+    try:
+        new_user = UserModel(
+            id=uuid4(),
+            name=user_data.name,
+            username=user_data.username,
+            email=str(user_data.email),
+            password=hashed_password,
+            birthday=user_data.birthday,
+            gender=user_data.gender,
+            avatar=user_data.avatar,
+            access_level=AccessLevel.USER,
+            created_at=datetime.now(timezone.utc)
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        return {
+            "message": "User registered successfully",
+            "user_id": str(new_user.id)
+        }
+
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database error: {str(e)}"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}"
+        )
