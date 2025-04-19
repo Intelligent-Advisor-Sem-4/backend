@@ -25,7 +25,8 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
 
     access_token = create_access_token(data={"sub": db_user.username})
 
-    return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level, user_id=db_user.id,
+    return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level,
+                         user_id=str(db_user.id),
                          name=db_user.name, email=EmailStr(db_user.email), avatar=db_user.avatar)
 
 
@@ -50,6 +51,8 @@ async def update_user_password(
 @router.post("/user/reg", status_code=status.HTTP_201_CREATED, response_model=RegistrationResponse)
 async def register_user(user_data: UserRegistration, db: Session = Depends(get_db)):
     # Check if username already exists
+    print('user_data:', user_data)
+
     existing_username = db.query(UserModel).filter(UserModel.username == user_data.username).first()
     if existing_username:
         raise HTTPException(
