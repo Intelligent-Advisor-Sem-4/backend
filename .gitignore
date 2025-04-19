@@ -3,5 +3,8 @@ env/
 .venv
 .idea
 .vscode/
+*.pyc
+*.pyo
 .env
 .env.personal
+
