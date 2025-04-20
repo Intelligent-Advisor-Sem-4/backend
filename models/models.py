@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, Date, ForeignKey, Numeric, BigInteger, Text
+from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean,JSON, Date, ForeignKey, Numeric, BigInteger, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
@@ -118,3 +118,25 @@ class StockPrediction(Base):
     def __repr__(self):
         return f"<StockPrediction(id={self.prediction_id}, date='{self.predicted_date}', price={self.predicted_price})>"
 
+
+class RiskModel(Base):
+    __tablename__ = 'risk_models'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    version = Column(String)
+    description = Column(String)
+    parameters = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, onupdate=datetime.utcnow)
+
+
+class ExplainabilityReport(Base):
+    __tablename__ = 'explainability_reports'
+
+    id = Column(Integer, primary_key=True)
+    transaction_id = Column(Integer)
+    model_id = Column(Integer)
+    report_data = Column(JSON)  # Stores SHAP values, LIME explanations, etc.
+    generated_at = Column(DateTime, default=datetime.utcnow)
+    explanation_type = Column(String)  # e.g., "SHAP", "LIME", "Gemini"
