@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 
-from API import user
+
+from API import user,prediction,profile,config
+
+
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -13,6 +16,10 @@ app.add_middleware(
 )
 
 app.include_router(user.router)
+app.include_router(prediction.router)
+app.include_router(config.router)
+
+app.include_router(profile.router)
 
 
 

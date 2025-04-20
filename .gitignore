@@ -1,2 +1,14 @@
 __pycache__/
 env/
+my_venv/
+.venv
+.idea
+.vscode/
+*.pyc
+*.pyo
+.env
+.env.personal
+
+
+
+__pycache__
