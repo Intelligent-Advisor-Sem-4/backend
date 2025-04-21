@@ -8,4 +8,5 @@ my_venv/
 *.pyo
 .env
 .env.personal
-.venv1
+/_pycache__
+

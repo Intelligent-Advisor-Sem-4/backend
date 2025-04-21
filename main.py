@@ -3,7 +3,6 @@ from fastapi import FastAPI
 
 from API import user,prediction,profile,config
 
-
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
