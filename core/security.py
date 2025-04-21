@@ -1,28 +1,19 @@
 import os
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import jwt
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
-from classes.security  import Token,TokenData,User,UserInDB
+from classes.security import Token, TokenData, User, UserInDB
+from core.password import verify_password
 from db.dbConnect import get_db
-
 
 router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 600000
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
 
 # User authentication and database query
 def get_user(cursor, username: str):
