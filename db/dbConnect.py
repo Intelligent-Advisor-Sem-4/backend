@@ -39,30 +39,47 @@ def get_db():
 def seed_user():
     db = SessionLocal()
     try:
-        # Check if user already exists by username or email
-        existing_user = db.query(UserModel).filter(
-            (UserModel.username == 'johndoe') |
-            (UserModel.email == 'johndoe@example.com')
-        ).first()
+        users_to_seed = [
+            {
+                "id": uuid4(),
+                "name": "John Doe",
+                "birthday": datetime(1990, 1, 1, tzinfo=timezone.utc),
+                "gender": Gender.MALE,
+                "username": "johndoe",
+                "password": get_password_hash("123"),
+                "email": "johndoe@example.com",
+                "access_level": AccessLevel.USER,
+                "created_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": uuid4(),
+                "name": "Jhon Smith",
+                "birthday": datetime(1985, 5, 15, tzinfo=timezone.utc),
+                "gender": Gender.MALE,
+                "username": "johnsmith",
+                "password": get_password_hash("admin123"),
+                "email": "admin@example.com",
+                "access_level": AccessLevel.ADMIN,
+                "created_at": datetime.now(timezone.utc)
+            }
+        ]
 
-        if existing_user:
-            print("User already exists. Skipping seeding.")
-            return
+        for user_data in users_to_seed:
+            existing_user = db.query(UserModel).filter(
+                (UserModel.username == user_data["username"]) |
+                (UserModel.email == user_data["email"])
+            ).first()
 
-        new_user = UserModel(
-            id=uuid4(),
-            name='John Doe',
-            birthday=datetime(1990, 1, 1, tzinfo=timezone.utc),
-            gender=Gender.MALE,
-            username='johndoe',
-            password=get_password_hash('123'),
-            email='johndoe@example.com',
-            access_level=AccessLevel.USER,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(new_user)
+            if existing_user:
+                print(f"User '{user_data['username']}' already exists. Skipping.")
+                continue
+
+            new_user = UserModel(**user_data)
+            db.add(new_user)
+
         db.commit()
-        print("Sample user seeded successfully.")
+        print("Sample users seeded successfully.")
+
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")
