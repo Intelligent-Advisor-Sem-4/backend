@@ -7,11 +7,12 @@ from pydantic.v1 import EmailStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from core.middleware import logger
-from core.security import pwd_context, verify_password, create_access_token, get_current_active_user
+from core.security import create_access_token, get_current_active_user
+from core.password import pwd_context, verify_password, get_password_hash
 from db.dbConnect import get_db
 from models import UserModel
-from classes.User import User, UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
-from models.models import Gender, AccessLevel
+from classes.User import UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
+from models.models import AccessLevel
 
 router = APIRouter(prefix='/auth')
 
@@ -68,9 +69,6 @@ async def register_user(user_data: UserRegistration, db: Session = Depends(get_d
             detail="Email already registered"
         )
 
-    # Hash the password
-    hashed_password = pwd_context.hash(user_data.password)
-
     # Create new user
     try:
         new_user = UserModel(
@@ -78,7 +76,7 @@ async def register_user(user_data: UserRegistration, db: Session = Depends(get_d
             name=user_data.name,
             username=user_data.username,
             email=str(user_data.email),
-            password=hashed_password,
+            password=get_password_hash(user_data.password),
             birthday=user_data.birthday,
             gender=user_data.gender,
             avatar=user_data.avatar,
