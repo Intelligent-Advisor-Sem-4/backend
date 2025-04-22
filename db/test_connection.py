@@ -3,7 +3,7 @@ from dbConnect import engine
 
 def test_connection():
     try:
-        # Try to connect and execute a simple query
+        
         with engine.connect() as connection:
             result = connection.execute(text("select * from stocks"))
             print("Database connection successful!")
