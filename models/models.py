@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean,JSON, Date, ForeignKey, Numeric, BigInteger, Text
+from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, JSON, Date, ForeignKey, Numeric, BigInteger, \
+    Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
@@ -37,7 +38,6 @@ class UserModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
-
 ## Models for Stock Price Prediction ##############################################################
 class Stock(Base):
     """Model for stocks table"""
@@ -54,10 +54,10 @@ class Stock(Base):
     # Relationships
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
-    
+
     def __repr__(self):
         return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}')>"
-    
+
 
 class StockPriceHistorical(Base):
     """Model for stock_price_historical table"""
@@ -74,10 +74,10 @@ class StockPriceHistorical(Base):
 
     # Relationship
     stock = relationship("Stock", back_populates="historical_prices")
-    
+
     def __repr__(self):
         return f"<StockPriceHistorical(stock_id={self.stock_id}, date='{self.price_date}', close={self.close_price})>"
-    
+
 
 class PredictionModel(Base):
     """Model for prediction_models table"""
@@ -96,10 +96,10 @@ class PredictionModel(Base):
     # Relationships
     target_stock = relationship("Stock", back_populates="prediction_models")
     predictions = relationship("StockPrediction", back_populates="model")
-    
+
     def __repr__(self):
         return f"<PredictionModel(model_id={self.model_id}, version='{self.model_version}', active={self.is_active})>"
-    
+
 
 class StockPrediction(Base):
     """Model for stock_predictions table"""
@@ -114,7 +114,7 @@ class StockPrediction(Base):
 
     # Relationship
     model = relationship("PredictionModel", back_populates="predictions")
-    
+
     def __repr__(self):
         return f"<StockPrediction(id={self.prediction_id}, date='{self.predicted_date}', price={self.predicted_price})>"
 
