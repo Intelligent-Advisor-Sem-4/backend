@@ -23,6 +23,20 @@ class Gender(enum.Enum):
     UNDEFINED = "undefined"
 
 
+class AssetStatus(enum.Enum):
+    PENDING = "Pending"  # Symbol added but model not trained
+    ACTIVE = "Active"  # Model trained; available for prediction and portfolios
+    WARNING = "Warning"  # Shows in dashboards but excluded from portfolios
+    BLACKLIST = "BlackList"  # Hidden from everything
+
+
+class AssetType(enum.Enum):
+    STOCK = "Stock"
+    GOLD = "Gold"
+    BOND = "Bond"
+    CRYPTO = "Crypto"
+
+
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -38,25 +52,39 @@ class UserModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
-## Models for Stock Price Prediction ##############################################################
 class Stock(Base):
-    """Model for stocks table"""
+    """Model representing a tradable financial asset (stock, crypto, etc.)
+
+    Attributes:
+        stock_id: Primary key for the stock.
+        ticker_symbol: Ticker symbol used in yfinance or other financial APIs (e.g., AAPL, BTC-USD).
+        asset_name: Human-readable name of the asset (e.g., 'Apple Inc.', 'Bitcoin').
+        currency: Currency in which the asset is traded.
+        status: Current lifecycle status of the asset.
+        type: Class/category of the asset (e.g., Stock, Crypto, Bond).
+        first_data_point_date: Date of the earliest available historical data.
+        last_data_point_date: Date of the most recent available historical data.
+        historical_prices: One-to-many relationship with historical price data.
+        prediction_models: One-to-many relationship with trained prediction models.
+    """
+
     __tablename__ = "stocks"
 
     stock_id = Column(Integer, primary_key=True)
     ticker_symbol = Column(String(20), unique=True, nullable=False)
-    company_name = Column(String(255))
+    asset_name = Column(String(255))
     currency = Column(String(10), default="USD")
-    is_active = Column(Boolean, default=True)
+    status = Column(Enum(AssetStatus), nullable=False, default=AssetStatus.PENDING)
+    type = Column(Enum(AssetType), nullable=False)
     first_data_point_date = Column(Date)
     last_data_point_date = Column(Date)
 
-    # Relationships
+    # --- Relationships ---
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
 
     def __repr__(self):
-        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}')>"
+        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type.name}')>"
 
 
 class StockPriceHistorical(Base):

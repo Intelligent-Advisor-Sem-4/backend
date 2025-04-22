@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 
-
-from API import user,prediction,profile,config,budget
+from API import user, prediction, profile, config
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,7 +19,8 @@ app.include_router(config.router)
 
 app.include_router(profile.router)
 
-app.include_router(budget.router)
+
+# app.include_router(budget.router)
 
 
 @app.get("/")
