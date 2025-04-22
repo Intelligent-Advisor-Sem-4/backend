@@ -32,17 +32,20 @@ def authenticate_user(cursor, username: str, password: str):
     return user
 
 
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=100000))
     to_encode.update({"exp": expire})
 
-    if "sub" not in to_encode:
-        raise ValueError("The 'sub' claim must be set in the token")
+    required_fields = ["sub", "user_id", "role", "username"]
+    for field in required_fields:
+        if field not in to_encode:
+            raise ValueError(f"The '{field}' claim must be set in the token")
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 # Dependency to get the current user
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db=Depends(get_db)):
