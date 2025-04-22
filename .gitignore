@@ -8,6 +8,7 @@ my_venv/
 *.pyo
 .env
 .env.personal
+tf_env/
 
 
 
