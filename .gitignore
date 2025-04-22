@@ -9,4 +9,5 @@ my_venv/
 .env
 .env.personal
 /_pycache__
-
+tf_env/
+__pycache__
