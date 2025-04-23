@@ -2,8 +2,9 @@ import yfinance as yf
 from classes.stock_screener import ScreenerType
 from sqlalchemy.orm import Session
 from datetime import date
-from models.models import Stock, AssetStatus  # assuming your model is in models.py
 
+from db.dbConnect import get_db
+from models.models import Stock, AssetStatus  # assuming your model is in models.py
 
 
 def calculate_risk(stock):
@@ -81,6 +82,7 @@ def run_stock_screen(screen_type: ScreenerType, offset=0, size=25, custom_query=
 
     return response
 
+
 def create_stock(db: Session, symbol: str) -> Stock:
     symbol = symbol.upper()
     existing = db.query(Stock).filter_by(ticker_symbol=symbol).first()
@@ -89,17 +91,24 @@ def create_stock(db: Session, symbol: str) -> Stock:
 
     try:
         yf_data = yf.Ticker(symbol)
+        basic_info = yf_data.fast_info
         info = yf_data.info
-        history = yf_data.history(period="max")
+        history_metadata = yf_data.history_metadata
+        if not basic_info:
+            raise ValueError(f"No data found for symbol '{symbol}'")
 
         stock = Stock(
             ticker_symbol=symbol,
-            asset_name=info.get("shortName") or info.get("longName") or symbol,
-            currency=info.get("currency", "USD"),
-            type="Stock",
+            asset_name=basic_info.get('shortName') or basic_info.get('longName') or info.get('shortName') or info.get('longName') or history_metadata.get('shortName') or history_metadata.get('longName') or symbol,
+            currency=basic_info.currency,
+            type=basic_info.quote_type,
+            exchange=basic_info.exchange,
+            timezone=basic_info.timezone,
+            sectorKey=info.get("sectorKey"),
+            sectorDisp=info.get("sectorDisp"),
+            industryKey=info.get("industryKey"),
+            industryDisp=info.get("industryDisp"),
             status=AssetStatus.PENDING,
-            first_data_point_date=history.index.min().date() if not history.empty else None,
-            last_data_point_date=history.index.max().date() if not history.empty else None
         )
 
         db.add(stock)
@@ -125,6 +134,7 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
 def get_stock_by_symbol(db: Session, symbol: str) -> Stock:
     return db.query(Stock).filter_by(ticker_symbol=symbol.upper()).first()
 
+
 def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
 
@@ -138,10 +148,16 @@ def delete_stock(db: Session, stock_id: int) -> None:
     db.commit()
 
 
-
-
 if __name__ == "__main__":
     # Example usage
-    screener = ScreenerType.MOST_ACTIVES
-    result = run_stock_screen(screener, offset=0, size=1, minimal=False)
-    print(result)
+    db_gen = get_db()
+    session = next(db_gen)
+    try:
+        # Create a new stock
+        try:
+            stock = create_stock(session, "TSLA")
+            print(f"Created stock: {stock}")
+        except ValueError as e:
+            print(e)
+    finally:
+        db_gen.close()

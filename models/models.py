@@ -67,17 +67,24 @@ class Stock(Base):
     ticker_symbol = Column(String(20), unique=True, nullable=False)
     asset_name = Column(String(255))
     currency = Column(String(10), default="USD")
+    exchange = Column(String(50), nullable=True)  # Made optional
+    sectorKey = Column(String(50), nullable=True)  # Made optional
+    sectorDisp = Column(String(50), nullable=True)  # Made optional
+    industryKey = Column(String(50), nullable=True)  # Made optional
+    industryDisp = Column(String(50), nullable=True)  # Made optional
+    timezone = Column(String(50), nullable=True)  # Made optional
     status = Column(Enum(AssetStatus), nullable=False, default=AssetStatus.PENDING)
-    type = Column(String(50), nullable=False)
-    first_data_point_date = Column(Date)
-    last_data_point_date = Column(Date)
+    type = Column(String(50), nullable=True)  # Made optional
+    first_data_point_date = Column(Date, nullable=True)
+    last_data_point_date = Column(Date, nullable=True)
 
     # --- Relationships ---
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
+    news_articles = relationship("NewsArticle", back_populates="stock")
 
     def __repr__(self):
-        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type.name}')>"
+        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type}')>"
 
 
 class StockPriceHistorical(Base):
@@ -161,3 +168,34 @@ class ExplainabilityReport(Base):
     report_data = Column(JSON)  # Stores SHAP values, LIME explanations, etc.
     generated_at = Column(DateTime, default=datetime.utcnow)
     explanation_type = Column(String)  # e.g., "SHAP", "LIME", "Gemini"
+
+
+class NewsArticle(Base):
+    __tablename__ = 'news_articles'
+    news_id = Column(String(64), primary_key=True)  # Yahoo gives string UUIDs
+    stock_id = Column(Integer, ForeignKey('stocks.stock_id'))
+
+    title = Column(String(255))
+    summary = Column(Text)
+    description = Column(Text)
+    content_type = Column(String(50))
+    publish_date = Column(DateTime)
+    thumbnail_url = Column(String(500))
+    canonical_url = Column(String(500))
+    provider_name = Column(String(100))
+
+    stock = relationship("Stock", back_populates="news_articles")
+    related_articles = relationship("RelatedArticle", back_populates="main_article")
+
+class RelatedArticle(Base):
+    __tablename__ = 'related_articles'
+    related_id = Column(Integer, primary_key=True, autoincrement=True)
+    news_id = Column(String(64), ForeignKey('news_articles.news_id'))
+
+    title = Column(String(255))
+    url = Column(String(500))
+    content_type = Column(String(50))
+    thumbnail_url = Column(String(500))
+    provider_name = Column(String(100))
+
+    main_article = relationship("NewsArticle", back_populates="related_articles")
