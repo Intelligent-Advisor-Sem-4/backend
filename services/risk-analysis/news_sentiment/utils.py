@@ -42,22 +42,6 @@ def parse_news_article(stock_id: int, article: dict) -> NewsArticle:
     return news
 
 
-def store_news_for_ticker(db: Session, ticker: str):
-    stock = db.query(Stock).filter_by(ticker_symbol=ticker).first()
-    if not stock:
-        raise ValueError(f"Stock with symbol '{ticker}' not found in database")
-
-    yf_data = yf.Ticker(ticker)
-    news_list = yf_data.news
-
-    for article in news_list:
-        if not db.query(NewsArticle).filter_by(news_id=article["id"]).first():
-            news_obj = parse_news_article(stock.stock_id, article)
-            db.add(news_obj)
-
-    db.commit()
-
-
 if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
