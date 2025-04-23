@@ -1,6 +1,9 @@
 import yfinance as yf
-
 from classes.stock_screener import ScreenerType
+from sqlalchemy.orm import Session
+from datetime import date
+from models.models import Stock, AssetStatus  # assuming your model is in models.py
+
 
 
 def calculate_risk(stock):
@@ -77,6 +80,64 @@ def run_stock_screen(screen_type: ScreenerType, offset=0, size=25, custom_query=
         }
 
     return response
+
+def create_stock(db: Session, symbol: str) -> Stock:
+    symbol = symbol.upper()
+    existing = db.query(Stock).filter_by(ticker_symbol=symbol).first()
+    if existing:
+        raise ValueError(f"Stock with symbol '{symbol}' already exists")
+
+    try:
+        yf_data = yf.Ticker(symbol)
+        info = yf_data.info
+        history = yf_data.history(period="max")
+
+        stock = Stock(
+            ticker_symbol=symbol,
+            asset_name=info.get("shortName") or info.get("longName") or symbol,
+            currency=info.get("currency", "USD"),
+            type="Stock",
+            status=AssetStatus.PENDING,
+            first_data_point_date=history.index.min().date() if not history.empty else None,
+            last_data_point_date=history.index.max().date() if not history.empty else None
+        )
+
+        db.add(stock)
+        db.commit()
+        db.refresh(stock)
+        return stock
+
+    except Exception as e:
+        raise ValueError(f"Failed to fetch data for symbol '{symbol}': {e}")
+
+
+def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> Stock:
+    stock = db.query(Stock).filter_by(stock_id=stock_id).first()
+    if not stock:
+        raise ValueError(f"Stock with ID {stock_id} not found")
+
+    stock.status = new_status
+    db.commit()
+    db.refresh(stock)
+    return stock
+
+
+def get_stock_by_symbol(db: Session, symbol: str) -> Stock:
+    return db.query(Stock).filter_by(ticker_symbol=symbol.upper()).first()
+
+def get_all_stocks(db: Session) -> list[Stock]:
+    return db.query(Stock).all()
+
+
+def delete_stock(db: Session, stock_id: int) -> None:
+    stock = db.query(Stock).filter_by(stock_id=stock_id).first()
+    if not stock:
+        raise ValueError(f"Stock with ID {stock_id} not found")
+
+    db.delete(stock)
+    db.commit()
+
+
 
 
 if __name__ == "__main__":
