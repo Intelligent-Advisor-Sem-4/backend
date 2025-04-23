@@ -82,5 +82,5 @@ def run_stock_screen(screen_type: ScreenerType, offset=0, size=25, custom_query=
 if __name__ == "__main__":
     # Example usage
     screener = ScreenerType.MOST_ACTIVES
-    result = run_stock_screen(screener, offset=0, size=1, minimal=True)
+    result = run_stock_screen(screener, offset=0, size=1, minimal=False)
     print(result)

@@ -30,13 +30,6 @@ class AssetStatus(enum.Enum):
     BLACKLIST = "BlackList"  # Hidden from everything
 
 
-class AssetType(enum.Enum):
-    STOCK = "Stock"
-    GOLD = "Gold"
-    BOND = "Bond"
-    CRYPTO = "Crypto"
-
-
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -75,7 +68,7 @@ class Stock(Base):
     asset_name = Column(String(255))
     currency = Column(String(10), default="USD")
     status = Column(Enum(AssetStatus), nullable=False, default=AssetStatus.PENDING)
-    type = Column(Enum(AssetType), nullable=False)
+    type = Column(String(50), nullable=False)
     first_data_point_date = Column(Date)
     last_data_point_date = Column(Date)
 
