@@ -40,16 +40,3 @@ def parse_news_article(stock_id: int, article: dict) -> NewsArticle:
         ))
 
     return news
-
-
-if __name__ == "__main__":
-    db_gen = get_db()
-    session = next(db_gen)
-    try:
-        # Create a new stock
-        try:
-            store_news_for_ticker(session, 'TSLA')
-        except ValueError as e:
-            print(e)
-    finally:
-        db_gen.close()

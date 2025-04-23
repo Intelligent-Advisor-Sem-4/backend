@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, JSON, Date, ForeignKey, Numeric, BigInteger, \
     Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
@@ -46,20 +46,7 @@ class UserModel(Base):
 
 
 class Stock(Base):
-    """Model representing a tradable financial asset (stock, crypto, etc.)
-
-    Attributes:
-        stock_id: Primary key for the stock.
-        ticker_symbol: Ticker symbol used in yfinance or other financial APIs (e.g., AAPL, BTC-USD).
-        asset_name: Human-readable name of the asset (e.g., 'Apple Inc.', 'Bitcoin').
-        currency: Currency in which the asset is traded.
-        status: Current lifecycle status of the asset.
-        type: Class/category of the asset (e.g., Stock, Crypto, Bond).
-        first_data_point_date: Date of the earliest available historical data.
-        last_data_point_date: Date of the most recent available historical data.
-        historical_prices: One-to-many relationship with historical price data.
-        prediction_models: One-to-many relationship with trained prediction models.
-    """
+    """Model representing a tradable financial asset (stock, crypto, etc.)"""
 
     __tablename__ = "stocks"
 
@@ -81,7 +68,8 @@ class Stock(Base):
     # --- Relationships ---
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
-    news_articles = relationship("NewsArticle", back_populates="stock")
+    news_articles = relationship("NewsArticle", back_populates="stock", cascade="all, delete-orphan")
+    news_risk_analysis = relationship("NewsRiskAnalysis", back_populates="stock", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type}')>"
@@ -172,6 +160,7 @@ class ExplainabilityReport(Base):
 
 class NewsArticle(Base):
     __tablename__ = 'news_articles'
+
     news_id = Column(String(64), primary_key=True)  # Yahoo gives string UUIDs
     stock_id = Column(Integer, ForeignKey('stocks.stock_id'))
 
@@ -185,12 +174,15 @@ class NewsArticle(Base):
     provider_name = Column(String(100))
 
     stock = relationship("Stock", back_populates="news_articles")
-    related_articles = relationship("RelatedArticle", back_populates="main_article")
+
+    related_articles = relationship("RelatedArticle", back_populates="main_article", cascade="all, delete-orphan")
+
 
 class RelatedArticle(Base):
     __tablename__ = 'related_articles'
+
     related_id = Column(Integer, primary_key=True, autoincrement=True)
-    news_id = Column(String(64), ForeignKey('news_articles.news_id'))
+    news_id = Column(String(64), ForeignKey('news_articles.news_id', ondelete="CASCADE"), nullable=False)
 
     title = Column(String(255))
     url = Column(String(500))
@@ -199,3 +191,23 @@ class RelatedArticle(Base):
     provider_name = Column(String(100))
 
     main_article = relationship("NewsArticle", back_populates="related_articles")
+
+
+class NewsRiskAnalysis(Base):
+    __tablename__ = "news_risk_analysis"
+
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
+
+    response_json = Column(JSON, nullable=True)
+    stability_score = Column(Integer, nullable=True)
+    stability_label = Column(String(50), nullable=True)
+    customer_suitability = Column(String(50), nullable=True)
+    suggested_action = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+    stock = relationship("Stock", back_populates="news_risk_analysis")
+
+    def __repr__(self):
+        return f"<NewsRiskAnalysis(news_id='{self.news_id}', stability_label='{self.stability_label}')>"

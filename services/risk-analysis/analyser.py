@@ -1,21 +1,17 @@
 import os
 from datetime import datetime, timedelta
 import numpy as np
-import pandas as pd
 import yfinance as yf
-from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from google import genai
 from db.dbConnect import get_db
-from models.models import Stock, NewsArticle, RelatedArticle
+from models.models import Stock, NewsArticle, RelatedArticle, NewsRiskAnalysis
 from utils import parse_news_article
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
-
-router = APIRouter(prefix="/api/risk", tags=["Risk Analysis"])
 
 
 class RiskAnalysis:
@@ -74,97 +70,146 @@ class RiskAnalysis:
 
         return results
 
-    def analyze_news_sentiment(self, articles: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Use Gemini to analyze news sentiment"""
+    def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Use Gemini to analyze news sentiment and store results in database"""
         if not articles:
-            return {
+            sentiment_data = {
                 "sentiment_score": 0,
                 "sentiment_label": "Neutral",
                 "key_risks": [],
-                "analysis": "No recent news articles available for analysis."
-            }
-
-        # Prepare news data for Gemini
-        news_text = "Recent news articles about " + self.ticker + ":\n\n"
-        for i, article in enumerate(articles, 1):
-            news_text += f"{i}. Title: {article['title']}\n"
-            news_text += f"   Date: {article['publish_date']}\n"
-            news_text += f"   Source: {article['provider_name']}\n"
-            news_text += f"   Summary: {article['summary']}\n\n"
-
-            if article.get('related_articles'):
-                news_text += "   Related articles:\n"
-                for related in article['related_articles']:
-                    news_text += f"   - {related['title']} ({related['provider_name']})\n"
-                news_text += "\n"
-
-        # Create prompt for Gemini
-        prompt = f"""
-        As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
-
-        {news_text}
-
-        Provide a structured JSON response focused on risk factors and investor suitability for inclusion in a regulated financial product. Ensure the analysis is explainable, auditable, and suitable for display in an admin dashboard.
-
-        Output must include:
-
-        1. **stability_score** (numeric): A score from -10 (extremely unstable/high risk) to +10 (extremely stable/secure)
-        2. **stability_label** (string): One of ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-        3. **key_risks** (object): Key risk factors identified, categorized as:
-           - legal_risks (lawsuits, investigations, compliance failures)
-           - governance_risks (executive exits, board conflicts, control disputes)
-           - fraud_indicators (misstatements, shell entities, shady transactions)
-           - political_exposure (foreign influence, sanctions, subsidies, regulations)
-           - operational_risks (supply disruptions, recalls, safety breaches)
-           - financial_stability_issues (high leverage, poor liquidity, debt covenant stress)
-        4. **security_assessment** (string, max 150 words): Objective summary of potential threats to investor security and financial exposure.
-        5. **customer_suitability** (string): One of ["Unsuitable", "Cautious Inclusion", "Suitable"], based on investor protection concerns.
-        6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
-        7. **risk_rationale** (array of strings): 2-3 concise bullet points justifying the score, label, and action using news-derived evidence.
-        8. **news_highlights** (array of strings, optional): If applicable, list key headline-worthy excerpts that triggered concern or affected scoring.
-
-        Ensure output is valid JSON and optimized for downstream explainability modules.
-        """
-
-        # Get response from Gemini
-        response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
-
-        try:
-            # Parse JSON response
-            import json
-            sentiment_data = json.loads(response.text)
-
-            # Add risk score based on sentiment
-            risk_score = max(0, 10 - sentiment_data["sentiment_score"])  # Convert sentiment to risk (10 = high risk)
-            sentiment_data["risk_score"] = risk_score
-
-            return sentiment_data
-        except Exception as e:
-            print(f"[Gemini Parsing Error] Exception: {e}")
-            print(f"[Gemini Raw Response] {response.text}")
-
-            return {
+                "analysis": "No recent news articles available for analysis.",
                 "stability_score": 0,
-                "stability_label": "Moderate Risk",
-                "key_risks": {
-                    "legal_risks": [],
-                    "governance_risks": [],
-                    "fraud_indicators": [],
-                    "political_exposure": [],
-                    "operational_risks": [],
-                    "financial_stability_issues": [],
-                },
-                "security_assessment": "Unable to assess due to analysis error. Recommend manual review before investor exposure.",
-                "customer_suitability": "Cautious Inclusion",
-                "suggested_action": "Flag for Review",
-                "risk_rationale": [
-                    "Automated sentiment analysis failed.",
-                    "Fallback risk score applied to avoid premature inclusion."
-                ],
-                "news_highlights": [],
-                "error_details": str(e)  # Optional: remove in production
+                "stability_label": "Neutral",
+                "customer_suitability": "Suitable",
+                "suggested_action": "Monitor"
             }
+        else:
+            # Prepare news data for Gemini
+            news_text = "Recent news articles about " + self.ticker + ":\n\n"
+            for i, article in enumerate(articles, 1):
+                news_text += f"{i}. Title: {article['title']}\n"
+                news_text += f"   Date: {article['publish_date']}\n"
+                news_text += f"   Source: {article['provider_name']}\n"
+                news_text += f"   Summary: {article['summary']}\n\n"
 
+                if article.get('related_articles'):
+                    news_text += "   Related articles:\n"
+                    for related in article['related_articles']:
+                        news_text += f"   - {related['title']} ({related['provider_name']})\n"
+                    news_text += "\n"
+
+            # Create prompt for Gemini (same as in your original code)
+            prompt = f"""
+            As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
+
+            {news_text}
+
+            Provide a structured JSON response focused on risk factors and investor suitability for inclusion in a regulated financial product. Ensure the analysis is explainable, auditable, and suitable for display in an admin dashboard.
+
+            Output must include:
+
+            1. **stability_score** (numeric): A score from -10 (extremely unstable/high risk) to +10 (extremely stable/secure)
+            2. **stability_label** (string): One of ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
+            3. **key_risks** (object): Key risk factors identified, categorized as:
+               - legal_risks (lawsuits, investigations, compliance failures)
+               - governance_risks (executive exits, board conflicts, control disputes)
+               - fraud_indicators (misstatements, shell entities, shady transactions)
+               - political_exposure (foreign influence, sanctions, subsidies, regulations)
+               - operational_risks (supply disruptions, recalls, safety breaches)
+               - financial_stability_issues (high leverage, poor liquidity, debt covenant stress)
+            4. **security_assessment** (string, max 150 words): Objective summary of potential threats to investor security and financial exposure.
+            5. **customer_suitability** (string): One of ["Unsuitable", "Cautious Inclusion", "Suitable"], based on investor protection concerns.
+            6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
+            7. **risk_rationale** (array of strings): 2-3 concise bullet points justifying the score, label, and action using news-derived evidence.
+            8. **news_highlights** (array of strings, optional): If applicable, list key headline-worthy excerpts that triggered concern or affected scoring.
+
+            Ensure output is valid JSON and optimized for downstream explainability modules.
+            """
+
+            # Get response from Gemini
+            response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+
+            try:
+                import json
+                response_text = response.text.strip()
+
+                # Remove markdown code block formatting if present
+                if response_text.startswith('```json'):
+                    # Remove ```json at start and ``` at end
+                    json_content = response_text[7:].strip()
+                    if json_content.endswith('```'):
+                        json_content = json_content[:-3].strip()
+                elif response_text.startswith('```') and response_text.endswith('```'):
+                    json_content = response_text[3:-3].strip()
+                else:
+                    json_content = response_text
+
+                sentiment_data = json.loads(json_content)
+
+                # Add risk score based on sentiment
+                risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
+                sentiment_data["risk_score"] = risk_score
+
+            except Exception as e:
+                print(f"[Gemini Parsing Error] Exception: {e}")
+                print(f"[Gemini Raw Response] {response.text}")
+
+                sentiment_data = {
+                    "stability_score": 0,
+                    "stability_label": "Moderate Risk",
+                    "key_risks": {
+                        "legal_risks": [],
+                        "governance_risks": [],
+                        "fraud_indicators": [],
+                        "political_exposure": [],
+                        "operational_risks": [],
+                        "financial_stability_issues": [],
+                    },
+                    "security_assessment": "Unable to assess due to analysis error. Recommend manual review before investor exposure.",
+                    "customer_suitability": "Cautious Inclusion",
+                    "suggested_action": "Flag for Review",
+                    "risk_rationale": [
+                        "Automated sentiment analysis failed.",
+                        "Fallback risk score applied to avoid premature inclusion."
+                    ],
+                    "news_highlights": [],
+                    "error_details": str(e)  # Optional: remove in production
+                }
+
+        # Store or update the analysis in the database
+        try:
+            # Check if an analysis already exists for this stock
+            existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+
+            if existing_analysis:
+                # Update existing record
+                existing_analysis.response_json = sentiment_data
+                existing_analysis.stability_score = sentiment_data.get("stability_score", 0)
+                existing_analysis.stability_label = sentiment_data.get("stability_label", "Neutral")
+                existing_analysis.customer_suitability = sentiment_data.get("customer_suitability", "Suitable")
+                existing_analysis.suggested_action = sentiment_data.get("suggested_action", "Monitor")
+                existing_analysis.updated_at = datetime.utcnow()
+            else:
+                # Create new record
+                news_analysis = NewsRiskAnalysis(
+                    stock_id=self.stock.stock_id,
+                    response_json=sentiment_data,
+                    stability_score=sentiment_data.get("stability_score", 0),
+                    stability_label=sentiment_data.get("stability_label", "Neutral"),
+                    customer_suitability=sentiment_data.get("customer_suitability", "Suitable"),
+                    suggested_action=sentiment_data.get("suggested_action", "Monitor"),
+                    created_at=datetime.utcnow()
+                )
+                self.db.add(news_analysis)
+
+            # Commit the changes
+            self.db.commit()
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"[Database Error] Failed to store news analysis: {e}")
+
+        return sentiment_data
 
     def calculate_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Calculate quantitative risk metrics"""
@@ -390,13 +435,21 @@ class RiskAnalysis:
             "components": components
         }
 
+
+
     def generate_risk_report(self, lookback_days: int = 30, news_limit: int = 10) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
+        # Store news articles in the database
+        print('Storing news articles in the database...')
+        self.store_news_for_ticker(self.db, self.ticker)
+
         # Fetch news articles
+        print('Fetching news articles...')
         articles = self.get_news_articles(news_limit)
 
         # Analyze news sentiment
-        self.risk_components["news_sentiment"] = self.analyze_news_sentiment(articles)
+        print('Analyzing news sentiment...')
+        self.risk_components["news_sentiment"] = self.generate_news_sentiment(articles)
 
         # Calculate quantitative metrics
         self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
@@ -426,6 +479,7 @@ class RiskAnalysis:
 
         return report
 
+
 # @router.get("/analysis/{ticker}")
 # async def get_risk_analysis(
 #         ticker: str,
@@ -448,7 +502,7 @@ if __name__ == "__main__":
     session = next(db_gen)
     try:
         analyzer = RiskAnalysis("TSLA", session)
-        report = analyzer.generate_risk_report(lookback_days=30, news_limit=5)
+        report = analyzer.generate_risk_report(lookback_days=30, news_limit=10)
         print(report)
     except Exception as e:
         print(f"Error: {e}")
