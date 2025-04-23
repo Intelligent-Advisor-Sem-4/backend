@@ -24,23 +24,11 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
-    # Add additional claims to the JWT
-    access_token = create_access_token(data={
-        "sub": db_user.username,
-        "user_id": str(db_user.id),
-        "role": db_user.access_level,
-        "username": db_user.username
-    })
+    access_token = create_access_token(data={"sub": db_user.username, "role": db_user.access_level.value})
 
-    return LoginResponse(
-        username=db_user.username,
-        token=access_token,
-        role=db_user.access_level,
-        user_id=str(db_user.id),
-        name=db_user.name,
-        email=EmailStr(db_user.email),
-        avatar=db_user.avatar
-    )
+    return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level,
+                         user_id=str(db_user.id),
+                         name=db_user.name, email=EmailStr(db_user.email), avatar=db_user.avatar)
 
 
 @router.put("/update-password/{username}", status_code=status.HTTP_200_OK)
