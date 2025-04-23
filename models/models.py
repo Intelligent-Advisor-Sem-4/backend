@@ -200,12 +200,13 @@ class NewsRiskAnalysis(Base):
     stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
 
     response_json = Column(JSON, nullable=True)
-    stability_score = Column(Integer, nullable=True)
+    stability_score = Column(Numeric(10, 2), nullable=True)
     stability_label = Column(String(50), nullable=True)
     customer_suitability = Column(String(50), nullable=True)
     suggested_action = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    risk_score = Column(Numeric(10, 2), nullable=True)
 
     stock = relationship("Stock", back_populates="news_risk_analysis")
 

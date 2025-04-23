@@ -2,9 +2,12 @@ import os
 from datetime import datetime, timedelta
 import numpy as np
 import yfinance as yf
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from google import genai
+
+from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
 from db.dbConnect import get_db
 from models.models import Stock, NewsArticle, RelatedArticle, NewsRiskAnalysis
 from utils import parse_news_article
@@ -12,6 +15,18 @@ from utils import parse_news_article
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+default_sentiment = SentimentAnalysisResponse(
+    stability_score=0,
+    stability_label="Stable",
+    key_risks=KeyRisks(),
+    security_assessment="No recent news articles available for analysis.",
+    customer_suitability="Suitable",
+    suggested_action="Monitor",
+    risk_rationale=["No recent news available for analysis."],
+    news_highlights=[],
+    risk_score=5
+)
 
 
 class RiskAnalysis:
@@ -70,18 +85,26 @@ class RiskAnalysis:
 
         return results
 
-    def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> SentimentAnalysisResponse:
         """Use Gemini to analyze news sentiment and store results in database"""
         if not articles:
+            # Create a default sentiment data structure for no articles
             sentiment_data = {
-                "sentiment_score": 0,
-                "sentiment_label": "Neutral",
-                "key_risks": [],
-                "analysis": "No recent news articles available for analysis.",
                 "stability_score": 0,
-                "stability_label": "Neutral",
+                "stability_label": "Stable",  # Changed from "Neutral" to match valid values
+                "key_risks": {
+                    "legal_risks": [],
+                    "governance_risks": [],
+                    "fraud_indicators": [],
+                    "political_exposure": [],
+                    "operational_risks": [],
+                    "financial_stability_issues": [],
+                },
+                "security_assessment": "No recent news articles available for analysis. Default stable assessment applied.",
                 "customer_suitability": "Suitable",
-                "suggested_action": "Monitor"
+                "suggested_action": "Monitor",
+                "risk_rationale": ["No recent news available for analysis."],
+                "news_highlights": []
             }
         else:
             # Prepare news data for Gemini
@@ -98,7 +121,7 @@ class RiskAnalysis:
                         news_text += f"   - {related['title']} ({related['provider_name']})\n"
                     news_text += "\n"
 
-            # Create prompt for Gemini (same as in your original code)
+            # Create prompt for Gemini
             prompt = f"""
             As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
 
@@ -122,6 +145,7 @@ class RiskAnalysis:
             6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
             7. **risk_rationale** (array of strings): 2-3 concise bullet points justifying the score, label, and action using news-derived evidence.
             8. **news_highlights** (array of strings, optional): If applicable, list key headline-worthy excerpts that triggered concern or affected scoring.
+            9. **risk_score** Derived risk score Float (0-10) based on stability score and other risk factors.
 
             Ensure output is valid JSON and optimized for downstream explainability modules.
             """
@@ -176,40 +200,99 @@ class RiskAnalysis:
                     "error_details": str(e)  # Optional: remove in production
                 }
 
-        # Store or update the analysis in the database
+        # Validate against Pydantic model
         try:
-            # Check if an analysis already exists for this stock
-            existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            # Parse the data through the Pydantic model for validation
+            sentiment_model = SentimentAnalysisResponse(**sentiment_data)
 
-            if existing_analysis:
-                # Update existing record
-                existing_analysis.response_json = sentiment_data
-                existing_analysis.stability_score = sentiment_data.get("stability_score", 0)
-                existing_analysis.stability_label = sentiment_data.get("stability_label", "Neutral")
-                existing_analysis.customer_suitability = sentiment_data.get("customer_suitability", "Suitable")
-                existing_analysis.suggested_action = sentiment_data.get("suggested_action", "Monitor")
-                existing_analysis.updated_at = datetime.utcnow()
+            # Store or update the analysis in the database
+            try:
+                # Check if an analysis already exists for this stock
+                existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+
+                if existing_analysis:
+                    # Update existing record with validated data
+                    existing_analysis.response_json = sentiment_model.model_dump()
+                    existing_analysis.stability_score = sentiment_model.stability_score
+                    existing_analysis.stability_label = sentiment_model.stability_label
+                    existing_analysis.customer_suitability = sentiment_model.customer_suitability
+                    existing_analysis.suggested_action = sentiment_model.suggested_action
+                    existing_analysis.updated_at = datetime.utcnow()
+                    existing_analysis.risk_score = sentiment_model.risk_score
+                else:
+                    # Create new record with validated data
+                    news_analysis = default_sentiment
+                    self.db.add(news_analysis)
+
+                # Commit the changes
+                self.db.commit()
+
+            except Exception as e:
+                self.db.rollback()
+                print(f"[Database Error] Failed to store news analysis: {e}")
+
+            # Return the validated model
+            return sentiment_model
+
+        except ValidationError as e:
+            print(f"[Validation Error] Gemini response doesn't match expected schema: {e}")
+
+            # Create a fallback valid model with error details
+            fallback_model = default_sentiment
+
+            # Store the fallback in database
+            try:
+                existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+
+                if existing_analysis:
+                    existing_analysis.response_json = fallback_model.dict()
+                    existing_analysis.stability_score = fallback_model.stability_score
+                    existing_analysis.stability_label = fallback_model.stability_label
+                    existing_analysis.customer_suitability = fallback_model.customer_suitability
+                    existing_analysis.suggested_action = fallback_model.suggested_action
+                    existing_analysis.updated_at = datetime.utcnow()
+                    existing_analysis.risk_score = fallback_model.risk_score
+                else:
+                    news_analysis = default_sentiment
+                    self.db.add(news_analysis)
+
+                self.db.commit()
+
+            except Exception as db_err:
+                self.db.rollback()
+                print(f"[Database Error] Failed to store fallback analysis: {db_err}")
+
+            return fallback_model
+
+    def get_news_sentiment(self, prefer_newest: bool = True) -> SentimentAnalysisResponse:
+        """Fetch news sentiment for the stock"""
+        if prefer_newest:
+            articles = self.get_news_articles(limit=10)
+            if articles:
+                return self.generate_news_sentiment(articles)
             else:
-                # Create new record
-                news_analysis = NewsRiskAnalysis(
-                    stock_id=self.stock.stock_id,
-                    response_json=sentiment_data,
-                    stability_score=sentiment_data.get("stability_score", 0),
-                    stability_label=sentiment_data.get("stability_label", "Neutral"),
-                    customer_suitability=sentiment_data.get("customer_suitability", "Suitable"),
-                    suggested_action=sentiment_data.get("suggested_action", "Monitor"),
-                    created_at=datetime.utcnow()
-                )
-                self.db.add(news_analysis)
-
-            # Commit the changes
-            self.db.commit()
-
-        except Exception as e:
-            self.db.rollback()
-            print(f"[Database Error] Failed to store news analysis: {e}")
-
-        return sentiment_data
+                # If no articles, return a default sentiment response
+                return default_sentiment
+        # If prefer_newest is False, check if sentiment already exists in the database and if it's older than 6hrs do new
+        else:
+            news_sentiment = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            if news_sentiment:
+                if news_sentiment.created_at < datetime.utcnow() - timedelta(hours=6):
+                    # If older than 6 hours, fetch new sentiment
+                    articles = self.get_news_articles(limit=10)
+                    if articles:
+                        return self.generate_news_sentiment(articles)
+                    else:
+                        # If no articles, return a default sentiment response
+                        return default_sentiment
+            else:
+                # If no sentiment exists, fetch new sentiment
+                articles = self.get_news_articles(limit=10)
+                if articles:
+                    return self.generate_news_sentiment(articles)
+                else:
+                    # If no articles, return a default sentiment response
+                    return default_sentiment
 
     def calculate_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Calculate quantitative risk metrics"""
@@ -434,8 +517,6 @@ class RiskAnalysis:
             "risk_level": risk_level,
             "components": components
         }
-
-
 
     def generate_risk_report(self, lookback_days: int = 30, news_limit: int = 10) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
