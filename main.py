@@ -4,6 +4,8 @@ from API import user, prediction, profile, config
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.middleware import token_verification_middleware
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -12,6 +14,8 @@ app.add_middleware(
     allow_methods=["*"],  # Ensure POST is allowed
     allow_headers=["*"],
 )
+
+app.middleware("http")(token_verification_middleware)
 
 app.include_router(user.router)
 app.include_router(prediction.router)
