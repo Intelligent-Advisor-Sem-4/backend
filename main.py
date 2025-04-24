@@ -22,11 +22,9 @@ app.include_router(prediction.router)
 app.include_router(config.router)
 
 app.include_router(profile.router)
+#app.include_router(budget.router)
 
-
-# app.include_router(budget.router)
-
-
+app.middleware("http")(token_verification_middleware)
 @app.get("/")
 def welcome():
     return "Welcome to Financial Advisor sem 4! Still Testing ! Test -1000 "
