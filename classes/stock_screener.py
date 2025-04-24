@@ -36,7 +36,7 @@ class ScreenerRequest(BaseModel):
     offset: int = Field(0, ge=0, description="The starting position in results")
     size: int = Field(25, gt=0, le=250, description="Number of results to return (max 250)")
     custom_query: Optional[Dict[str, Any]] = Field(None, description="Custom query parameters")
-    minimal: bool = Field(False, description="Return minimal data")
+    minimal: bool = Field(True, description="Return minimal data")
 
 
 class MinimalStockInfo(BaseModel):

@@ -19,7 +19,8 @@ def calculate_risk(s):
     return "Low"
 
 
-def run_stock_screen(screen_type: ScreenerType, offset=0, size=25, custom_query=None, minimal=False):
+def run_stock_screen(screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offset=0, size=25, custom_query=None,
+                     minimal: bool = False):
     """
     Run a stock or fund screener using predefined queries or a custom query.
     """
@@ -130,7 +131,6 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
     db.commit()
     db.refresh(stock)
     return stock
-
 
 
 def get_all_stocks(db: Session) -> list[Stock]:
