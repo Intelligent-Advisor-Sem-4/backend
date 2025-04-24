@@ -7,7 +7,7 @@ from yfinance import Ticker
 
 from classes.Sentiment import SentimentAnalysisResponse
 from models.models import NewsArticle, NewsRiskAnalysis
-from utils import parse_news_article, default_sentiment, parse_gemini_response, get_stock_by_ticker
+from services.utils import parse_news_article, default_sentiment, parse_gemini_response, get_stock_by_ticker
 
 
 class NewsSentimentService:

@@ -10,7 +10,7 @@ import yfinance as yf
 from yfinance import Ticker
 
 from models.models import QuantitativeRiskAnalysis
-from utils import calculate_risk_scores, to_python_type, get_stock_by_ticker
+from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker
 
 
 class QuantitativeRiskService:

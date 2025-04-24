@@ -7,10 +7,10 @@ from db.dbConnect import get_db
 from models.models import Stock, AssetStatus  # assuming your model is in models.py
 
 
-def calculate_risk(stock):
-    volatility = stock.get("fiftyTwoWeekHigh", 0) - stock.get("fiftyTwoWeekLow", 0)
-    market_cap = stock.get("marketCap", 0)
-    pe = stock.get("forwardPE", 0) or stock.get("trailingPE", 0)
+def calculate_risk(s):
+    volatility = s.get("fiftyTwoWeekHigh", 0) - s.get("fiftyTwoWeekLow", 0)
+    market_cap = s.get("marketCap", 0)
+    pe = s.get("forwardPE", 0) or s.get("trailingPE", 0)
 
     if not market_cap or market_cap < 1e9:
         return "High"
@@ -131,9 +131,6 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
     db.refresh(stock)
     return stock
 
-
-def get_stock_by_symbol(db: Session, symbol: str) -> Stock:
-    return db.query(Stock).filter_by(ticker_symbol=symbol.upper()).first()
 
 
 def get_all_stocks(db: Session) -> list[Stock]:

@@ -11,7 +11,7 @@ from db.dbConnect import get_db
 from esg_risk import ESGDataService
 from news_sentiment import NewsSentimentService
 from quantitative_risk import QuantitativeRiskService
-from utils import get_stock_by_ticker
+from services.utils import get_stock_by_ticker
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
