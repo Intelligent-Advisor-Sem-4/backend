@@ -70,6 +70,8 @@ class Stock(Base):
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
     news_articles = relationship("NewsArticle", back_populates="stock", cascade="all, delete-orphan")
     news_risk_analysis = relationship("NewsRiskAnalysis", back_populates="stock", cascade="all, delete-orphan")
+    quantitative_risk_analysis = relationship("QuantitativeRiskAnalysis", back_populates="stock",
+                                              cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type}')>"

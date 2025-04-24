@@ -591,6 +591,8 @@ class RiskAnalysis:
 
             # Calculate anomaly score
             anomaly_score = max(flag_scores) if flag_scores else 0
+            if len(flags) > 3:  # If there are multiple anomalies
+                anomaly_score = min(10.0, anomaly_score * (1 + 0.1 * (len(flags) - 3)))
 
             return {
                 "flags": flags,
@@ -671,11 +673,12 @@ class RiskAnalysis:
         # self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
 
         # Calculate quantitative metrics
-        print('Calculating quantitative metrics...')
-        self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
+        # print('Calculating quantitative metrics...')
+        # self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
 
         # Detect anomalies
-        self.risk_components["anomalies"] = self.detect_anomalies(lookback_days)
+        # print('Detecting anomalies...')
+        # self.risk_components["anomalies"] = self.detect_anomalies(lookback_days)
 
         # Get ESG data
         self.risk_components["esg"] = self.get_esg_data()
@@ -684,7 +687,7 @@ class RiskAnalysis:
         overall_risk = self.calculate_overall_risk()
 
         # Compile final report
-        report = {
+        final_risk_report = {
             "symbol": self.ticker,
             "company_name": self.stock.asset_name,
             "analysis_date": datetime.now().isoformat(),
@@ -697,7 +700,7 @@ class RiskAnalysis:
             }
         }
 
-        return report
+        return final_risk_report
 
 
 # @router.get("/analysis/{ticker}")
