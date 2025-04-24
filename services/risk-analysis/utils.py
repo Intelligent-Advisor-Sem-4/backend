@@ -1,10 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict
 
-import yfinance as yf
-from sqlalchemy.orm import Session
-
-from db.dbConnect import get_db
+import numpy as np
 from models.models import NewsArticle, RelatedArticle, Stock
 
 

@@ -3,7 +3,6 @@ import os
 import re
 from datetime import datetime, timedelta
 import numpy as np
-import yfinance
 import yfinance as yf
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -609,21 +608,23 @@ class RiskAnalysis:
             esg_data = self.ticker_data.sustainability
 
             if esg_data is not None and not esg_data.empty:
-                # Extract ESG scores
-                total_esg = esg_data.get('totalEsg', [None])[0]
-                env_score = esg_data.get('environmentScore', [None])[0]
-                social_score = esg_data.get('socialScore', [None])[0]
-                governance_score = esg_data.get('governanceScore', [None])[0]
+                # Extract ESG scores - proper DataFrame indexing
+                # Note: sustainability returns a DataFrame with a single column
+                # The values we want are in the first row, accessed via .iloc[0]
+                total_esg = esg_data.loc['totalEsg'].iloc[0] if 'totalEsg' in esg_data.index else None
+                env_score = esg_data.loc['environmentScore'].iloc[0] if 'environmentScore' in esg_data.index else None
+                social_score = esg_data.loc['socialScore'].iloc[0] if 'socialScore' in esg_data.index else None
+                governance_score = esg_data.loc['governanceScore'].iloc[
+                    0] if 'governanceScore' in esg_data.index else None
 
                 # Calculate risk score from ESG (higher ESG risk = higher risk score)
-                esg_risk_score = 10 - min(10, total_esg)
-
+                esg_risk_score = 10 - (total_esg / 10) if total_esg is not None else 5
                 return {
                     "total_esg": total_esg,
                     "environmental_score": env_score,
                     "social_score": social_score,
                     "governance_score": governance_score,
-                    "esg_risk_score": float(esg_risk_score) if esg_risk_score is not None else 5
+                    "esg_risk_score": float(esg_risk_score)
                 }
             else:
                 return {
@@ -631,6 +632,7 @@ class RiskAnalysis:
                 }
         except Exception as e:
             print(f"Error getting ESG data: {e}")
+            # You might want to add more detailed logging here
             return {"esg_risk_score": 5}
 
     def calculate_overall_risk(self) -> Dict[str, Any]:
@@ -665,25 +667,27 @@ class RiskAnalysis:
     def generate_risk_report(self, lookback_days: int = 30, news_limit: int = 10) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
         # Store news articles in the database
-        # print('Storing news articles in the database...')
-        # self.store_news_for_ticker(self.db, self.ticker)
-        #
-        # # Analyze news sentiment
-        # print('Analyzing news sentiment...')
-        # self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
+        print('Storing news articles in the database...')
+        self.store_news_for_ticker(self.db, self.ticker)
+
+        # Analyze news sentiment
+        print('Analyzing news sentiment...')
+        self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
 
         # Calculate quantitative metrics
-        # print('Calculating quantitative metrics...')
-        # self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
+        print('Calculating quantitative metrics...')
+        self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
 
         # Detect anomalies
-        # print('Detecting anomalies...')
-        # self.risk_components["anomalies"] = self.detect_anomalies(lookback_days)
+        print('Detecting anomalies...')
+        self.risk_components["anomalies"] = self.detect_anomalies(lookback_days)
 
         # Get ESG data
+        print("Getting ESG data...")
         self.risk_components["esg"] = self.get_esg_data()
 
         # Calculate overall risk
+        print('Calculating overall risk...')
         overall_risk = self.calculate_overall_risk()
 
         # Compile final report
