@@ -212,3 +212,22 @@ class NewsRiskAnalysis(Base):
 
     def __repr__(self):
         return f"<NewsRiskAnalysis(news_id='{self.news_id}', stability_label='{self.stability_label}')>"
+
+
+class QuantitativeRiskAnalysis(Base):
+    __tablename__ = "quantitative_risk_analysis"
+
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    volatility = Column(Numeric(10, 4), nullable=True)
+    beta = Column(Numeric(10, 4), nullable=True)
+    rsi = Column(Numeric(10, 4), nullable=True)
+    volume_change = Column(Numeric(10, 4), nullable=True)
+    debt_to_equity = Column(Numeric(10, 4), nullable=True)
+    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+    stock = relationship("Stock", back_populates="quantitative_risk_analysis")
+
+    def __repr__(self):
+        return f"<QuantitativeRiskAnalysis(analysis_id={self.analysis_id}, volatility={self.volatility})>"

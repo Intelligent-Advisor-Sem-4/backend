@@ -12,8 +12,8 @@ from google import genai
 
 from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
 from db.dbConnect import get_db
-from models.models import Stock, NewsArticle, RelatedArticle, NewsRiskAnalysis
-from utils import parse_news_article
+from models.models import Stock, NewsArticle, RelatedArticle, NewsRiskAnalysis, QuantitativeRiskAnalysis
+from utils import parse_news_article, calculate_risk_scores, parse_gemini_response
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -120,8 +120,9 @@ class RiskAnalysis:
                 prompt = self._create_sentiment_prompt(news_text)
 
                 # Get response from Gemini
-                sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
-                sentiment_data = self._parse_gemini_response(sentiment_response)
+                sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
+                                                                                contents=prompt)
+                sentiment_data = parse_gemini_response(sentiment_response)
 
             except Exception as e:
                 print(f"[Gemini Analysis Error] Exception: {e}")
@@ -190,30 +191,6 @@ class RiskAnalysis:
 
         Ensure output is valid JSON and optimized for downstream explainability modules.
         """
-
-    def _parse_gemini_response(self, response) -> Dict[str, Any]:
-        """Parse and clean Gemini's response"""
-        import json
-        response_text = response.text.strip()
-
-        # Remove markdown code block formatting if present
-        if response_text.startswith('```json'):
-            json_content = response_text[7:].strip()
-            if json_content.endswith('```'):
-                json_content = json_content[:-3].strip()
-        elif response_text.startswith('```') and response_text.endswith('```'):
-            json_content = response_text[3:-3].strip()
-        else:
-            json_content = response_text
-
-        sentiment_data = json.loads(json_content)
-
-        # Add risk score based on sentiment if it's not already there
-        if "risk_score" not in sentiment_data:
-            risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
-            sentiment_data["risk_score"] = risk_score
-
-        return sentiment_data
 
     def _validate_and_store_sentiment(self, sentiment_data: Dict[str, Any]) -> SentimentAnalysisResponse:
         """Validate sentiment data and store it in the database"""
@@ -323,8 +300,41 @@ class RiskAnalysis:
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles)
 
-    def _generate_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
-                                  quant_risk_score) -> Dict[str, str]:
+    def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity) -> None:
+        """Store or update quantitative risk analysis in the database"""
+        try:
+            existing_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+
+            if existing_analysis:
+                # Update existing record
+                existing_analysis.volatility = volatility
+                existing_analysis.beta = beta
+                existing_analysis.rsi = rsi
+                existing_analysis.volume_change = volume_change
+                existing_analysis.debt_to_equity = debt_to_equity
+                existing_analysis.updated_at = datetime.utcnow()
+
+
+            else:
+                # Create new record
+                quantitative_analysis = QuantitativeRiskAnalysis(
+                    stock_id=self.stock.stock_id,
+                    volatility=volatility,
+                    beta=beta,
+                    rsi=rsi,
+                    volume_change=volume_change,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                self.db.add(quantitative_analysis)
+
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            print(f"[Database Error] Failed to store quantitative risk analysis: {e}")
+
+    def _generate_quantitative_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
+                                                quant_risk_score) -> Dict[str, str]:
         """Generate a risk explanation and label using Google Gemini API"""
         try:
             # Format values properly with conditional handling
@@ -450,19 +460,20 @@ class RiskAnalysis:
             # 5. Debt to Equity ratio
             debt_to_equity = info.get('debtToEquity')
 
-            # Calculate risk scores (0-10 scale)
-            volatility_score = min(10, volatility / 5)  # Higher volatility = higher risk
-            beta_score = min(10, abs(beta) * 3) if beta is not None else 5  # Higher absolute beta = higher risk
-            rsi_risk = min(10, abs(rsi - 50) / 5)  # Extreme RSI = higher risk
-            volume_score = min(10, abs(volume_change) / 10)  # Abnormal volume = higher risk
-            debt_risk = min(10, debt_to_equity / 100) if debt_to_equity is not None else 5  # Higher debt = higher risk
+            # Call the risk scoring function
+            risk_scores = calculate_risk_scores(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity
+            )
 
-            # Combine into overall quantitative risk score
-            quant_risk_score = np.mean(
-                [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk] if x is not None])
+            # Get the overall risk score for the Gemini explanation
+            quant_risk_score = risk_scores["quant_risk_score"]
 
-            # Gemini Risk Analysis
-            risk_analysis = self._generate_risk_explanation(
+            # Generate AI explanation
+            risk_analysis = self._generate_quantitative_risk_explanation(
                 ticker=self.ticker,
                 volatility=volatility,
                 beta=beta,
@@ -472,20 +483,23 @@ class RiskAnalysis:
                 quant_risk_score=quant_risk_score
             )
 
+            # Store the quantitative risk analysis in the database
+            self._store_quantitative_risk_analysis(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity
+            )
+
+            # Return the complete results
             return {
                 "volatility": volatility,
                 "beta": beta,
                 "rsi": rsi,
                 "volume_change_percent": volume_change,
                 "debt_to_equity": debt_to_equity,
-                "risk_metrics": {
-                    "volatility_score": float(volatility_score),
-                    "beta_score": float(beta_score) if beta is not None else None,
-                    "rsi_risk": float(rsi_risk),
-                    "volume_risk": float(volume_score),
-                    "debt_risk": float(debt_risk) if debt_to_equity is not None else None,
-                    "quant_risk_score": float(quant_risk_score)
-                },
+                "risk_metrics": risk_scores,
                 "risk_label": risk_analysis["risk_label"],
                 "risk_explanation": risk_analysis["explanation"]
             }
@@ -498,6 +512,22 @@ class RiskAnalysis:
                 },
                 "risk_explanation": "Unable to calculate risk metrics due to an error."
             }
+
+    def get_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
+        """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
+        quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+
+        if quantitative_analysis and quantitative_analysis.created_at > datetime.utcnow() - timedelta(days=2):
+            return {
+                "volatility": quantitative_analysis.volatility,
+                "beta": quantitative_analysis.beta,
+                "rsi": quantitative_analysis.rsi,
+                "volume_change_percent": quantitative_analysis.volume_change,
+                "debt_to_equity": quantitative_analysis.debt_to_equity
+            }
+
+        # If no recent analysis exists, calculate new metrics
+        return self.calculate_quantitative_metrics(lookback_days)
 
     def detect_anomalies(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Detect price, volume and other anomalies"""
