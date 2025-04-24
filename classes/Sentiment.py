@@ -32,7 +32,6 @@ class SentimentAnalysisResponse(BaseModel):
     security_assessment: str = Field(
         ...,
         description="Objective summary of potential threats to investor security and financial exposure",
-        max_length=500
     )
     customer_suitability: str = Field(
         ...,

@@ -1,6 +1,9 @@
+import json
 import os
+import re
 from datetime import datetime, timedelta
 import numpy as np
+import yfinance
 import yfinance as yf
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -14,7 +17,6 @@ from utils import parse_news_article
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=GEMINI_API_KEY)
 
 default_sentiment = SentimentAnalysisResponse(
     stability_score=0,
@@ -36,6 +38,7 @@ class RiskAnalysis:
         self.stock = self._get_stock()
         self.ticker_data = yf.Ticker(ticker)
         self.risk_components = {}
+        self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
     def _get_stock(self) -> Stock:
         stock = self.db.query(Stock).filter_by(ticker_symbol=self.ticker).first()
@@ -88,7 +91,6 @@ class RiskAnalysis:
     def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> SentimentAnalysisResponse:
         """Use Gemini to analyze news sentiment and store results in database"""
         # Default sentiment for no articles or error cases
-        global response
         default_sentiment_data = {
             "stability_score": 0,
             "stability_label": "Stable",
@@ -111,18 +113,19 @@ class RiskAnalysis:
         if not articles:
             sentiment_data = default_sentiment_data
         else:
+            sentiment_response = None
             try:
                 # Prepare news data for Gemini
                 news_text = self._format_news_articles(articles)
                 prompt = self._create_sentiment_prompt(news_text)
 
                 # Get response from Gemini
-                response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
-                sentiment_data = self._parse_gemini_response(response)
+                sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+                sentiment_data = self._parse_gemini_response(sentiment_response)
 
             except Exception as e:
                 print(f"[Gemini Analysis Error] Exception: {e}")
-                print(f"[Gemini Raw Response] {getattr(response, 'text', 'No response')}")
+                print(f"[Gemini Raw Response] {getattr(sentiment_response, 'text', 'No response')}")
 
                 sentiment_data = default_sentiment_data.copy()
                 sentiment_data.update({
@@ -320,8 +323,80 @@ class RiskAnalysis:
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles)
 
+    def _generate_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
+                                  quant_risk_score) -> Dict[str, str]:
+        """Generate a risk explanation and label using Google Gemini API"""
+        try:
+            # Format values properly with conditional handling
+            beta_str = f"{beta:.2f}" if beta is not None else "N/A"
+            debt_str = f"{debt_to_equity:.2f}" if debt_to_equity is not None else "N/A"
+
+            # Prepare the prompt for Gemini
+            prompt = f"""
+            As a financial risk analyst, analyze the following stock metrics for {ticker}:
+
+            - Volatility: {volatility:.2f}% (annualized)
+            - Beta: {beta_str}
+            - RSI: {rsi:.2f}
+            - Recent Volume Change: {volume_change:.2f}%
+            - Debt-to-Equity Ratio: {debt_str}
+            - Overall Risk Score: {quant_risk_score:.2f}/10
+
+            Provide your analysis in JSON format with exactly these two fields:
+            1. "risk_label": Choose exactly one label from ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
+            2. "explanation": A concise explanation (2-3 sentences) of the primary risk factors and their implications
+
+            Return only valid JSON with no additional text, comments, or markdown formatting.
+            """
+
+            # Call the Gemini API
+            response = self.gemini_client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+            response_text = response.text
+
+            # Parse the JSON response
+            # First, try to find JSON between code blocks if present
+            json_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+            json_match = re.search(json_pattern, response_text)
+
+            if json_match:
+                json_text = json_match.group(1)
+            else:
+                # If no code blocks, treat the entire response as JSON
+                json_text = response_text
+
+            # Clean up any remaining markdown or text artifacts
+            json_text = json_text.strip()
+
+            # Parse JSON
+            try:
+                result = json.loads(json_text)
+
+                # Validate the response has required fields
+                if "risk_label" not in result or "explanation" not in result:
+                    raise ValueError("Response missing required fields")
+
+                # Validate the risk label is one of the expected values
+                valid_labels = ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
+                if result["risk_label"] not in valid_labels:
+                    result["risk_label"] = "Moderate Risk"  # Default if invalid
+
+                return result
+            except json.JSONDecodeError:
+                # Fallback if JSON parsing fails
+                return {
+                    "risk_label": "Moderate Risk",
+                    "explanation": "Unable to parse risk analysis. Defaulting to moderate risk assessment."
+                }
+
+        except Exception as e:
+            print(f"Error generating risk explanation: {e}")
+            return {
+                "risk_label": "Moderate Risk",
+                "explanation": "Risk analysis not available due to an error."
+            }
+
     def calculate_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
-        """Calculate quantitative risk metrics"""
+        """Calculate key quantitative risk metrics"""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days + 30)  # Extra data for calculations
 
@@ -331,14 +406,16 @@ class RiskAnalysis:
             if hist.empty:
                 raise ValueError(f"No historical data available for {self.ticker}")
 
-            # Calculate metrics
+            # Get info data
+            info = self.ticker_data.info
+
             # 1. Volatility (annualized)
             daily_returns = hist['Close'].pct_change().dropna()
             volatility = daily_returns.std() * np.sqrt(252) * 100  # Annualized and in percent
 
             # 2. Beta (market risk)
             try:
-                market_data = yf.download('^GSPC', start=start_date, end=end_date, progress=False)
+                market_data = yf.Ticker('^GSPC').history(start=start_date, end=end_date)  # S&P 500 as market index
                 market_returns = market_data['Close'].pct_change().dropna()
 
                 # Align both series to have matching dates
@@ -354,17 +431,7 @@ class RiskAnalysis:
                 print(f"Error calculating beta: {e}")
                 beta = None
 
-            # 3. Volume analysis
-            avg_volume = hist['Volume'].mean()
-            recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
-            volume_change = ((recent_volume / avg_volume) - 1) * 100  # Percentage change
-
-            # 4. Price momentum
-            recent_price = hist['Close'].iloc[-1]
-            price_20d_ago = hist['Close'].iloc[-min(21, len(hist)):].iloc[0]
-            momentum_20d = ((recent_price / price_20d_ago) - 1) * 100
-
-            # 5. RSI (Relative Strength Index)
+            # 3. RSI (Relative Strength Index)
             delta = hist['Close'].diff().dropna()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
@@ -375,34 +442,52 @@ class RiskAnalysis:
             rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs.iloc[-1]))
 
-            # Calculate risk scores
+            # 4. Volume change
+            avg_volume = hist['Volume'].mean()
+            recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
+            volume_change = ((recent_volume / avg_volume) - 1) * 100  # Percentage change
+
+            # 5. Debt to Equity ratio
+            debt_to_equity = info.get('debtToEquity')
+
+            # Calculate risk scores (0-10 scale)
             volatility_score = min(10, volatility / 5)  # Higher volatility = higher risk
-
-            # Beta risk score (higher beta = higher risk)
-            beta_score = min(10, abs(beta) * 3) if beta is not None else 5
-
-            # Volume change risk (abnormal volume = higher risk)
-            volume_score = min(10, abs(volume_change) / 10)
-
-            # RSI risk (extreme values = higher risk)
-            rsi_risk = min(10, abs(rsi - 50) / 5)
+            beta_score = min(10, abs(beta) * 3) if beta is not None else 5  # Higher absolute beta = higher risk
+            rsi_risk = min(10, abs(rsi - 50) / 5)  # Extreme RSI = higher risk
+            volume_score = min(10, abs(volume_change) / 10)  # Abnormal volume = higher risk
+            debt_risk = min(10, debt_to_equity / 100) if debt_to_equity is not None else 5  # Higher debt = higher risk
 
             # Combine into overall quantitative risk score
-            quant_risk_score = np.mean([volatility_score, beta_score, volume_score, rsi_risk])
+            quant_risk_score = np.mean(
+                [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk] if x is not None])
+
+            # Gemini Risk Analysis
+            risk_analysis = self._generate_risk_explanation(
+                ticker=self.ticker,
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
+                quant_risk_score=quant_risk_score
+            )
 
             return {
                 "volatility": volatility,
                 "beta": beta,
-                "volume_change_percent": volume_change,
-                "momentum_20d_percent": momentum_20d,
                 "rsi": rsi,
+                "volume_change_percent": volume_change,
+                "debt_to_equity": debt_to_equity,
                 "risk_metrics": {
                     "volatility_score": float(volatility_score),
                     "beta_score": float(beta_score) if beta is not None else None,
-                    "volume_risk": float(volume_score),
                     "rsi_risk": float(rsi_risk),
+                    "volume_risk": float(volume_score),
+                    "debt_risk": float(debt_risk) if debt_to_equity is not None else None,
                     "quant_risk_score": float(quant_risk_score)
-                }
+                },
+                "risk_label": risk_analysis["risk_label"],
+                "risk_explanation": risk_analysis["explanation"]
             }
         except Exception as e:
             print(f"Error calculating quantitative metrics: {e}")
@@ -410,7 +495,8 @@ class RiskAnalysis:
                 "error": str(e),
                 "risk_metrics": {
                     "quant_risk_score": 5  # Neutral score on error
-                }
+                },
+                "risk_explanation": "Unable to calculate risk metrics due to an error."
             }
 
     def detect_anomalies(self, lookback_days: int = 30) -> Dict[str, Any]:
@@ -547,14 +633,15 @@ class RiskAnalysis:
     def generate_risk_report(self, lookback_days: int = 30, news_limit: int = 10) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
         # Store news articles in the database
-        print('Storing news articles in the database...')
-        self.store_news_for_ticker(self.db, self.ticker)
-
-        # Analyze news sentiment
-        print('Analyzing news sentiment...')
-        self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
+        # print('Storing news articles in the database...')
+        # self.store_news_for_ticker(self.db, self.ticker)
+        #
+        # # Analyze news sentiment
+        # print('Analyzing news sentiment...')
+        # self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
 
         # Calculate quantitative metrics
+        print('Calculating quantitative metrics...')
         self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
 
         # Detect anomalies
