@@ -638,9 +638,11 @@ class RiskAnalysis:
     def calculate_overall_risk(self) -> Dict[str, Any]:
         """Calculate overall risk score from all components"""
         # Get all risk components with assigned weights
+        news_sentiment_risk = getattr(self.risk_components.get("news_sentiment", {}), "risk_score", 5)
+
         components = {
             "news_sentiment": {"weight": 0.30,
-                               "score": self.risk_components.get("news_sentiment", {}).get("risk_score", 5)},
+                               "score": news_sentiment_risk},
             "quantitative": {"weight": 0.35,
                              "score": self.risk_components.get("quantitative", {}).get("risk_metrics", {}).get(
                                  "quant_risk_score", 5)},
@@ -728,7 +730,7 @@ if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
     try:
-        analyzer = RiskAnalysis("TSLA", session)
+        analyzer = RiskAnalysis("AAPL", session)
         report = analyzer.generate_risk_report(lookback_days=30, news_limit=10)
         print(report)
     except Exception as e:
