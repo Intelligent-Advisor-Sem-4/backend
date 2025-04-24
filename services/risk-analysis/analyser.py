@@ -12,7 +12,7 @@ from google import genai
 from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
 from db.dbConnect import get_db
 from models.models import Stock, NewsArticle, RelatedArticle, NewsRiskAnalysis, QuantitativeRiskAnalysis
-from utils import parse_news_article, calculate_risk_scores, parse_gemini_response
+from utils import parse_news_article, calculate_risk_scores, parse_gemini_response, to_python_type
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -45,9 +45,10 @@ class RiskAnalysis:
             raise ValueError(f"Stock with symbol '{self.ticker}' not found in database")
         return stock
 
-    def store_news_for_ticker(self, db: Session, ticker: str):
-
-        yf_data = yf.Ticker(ticker)
+    def store_news_for_ticker(self, db: Session):
+        """Store the news sentiments for a ticker symbol in the database"""
+        print('Storing news articles for ticker:', self.ticker)
+        yf_data = yf.Ticker(self.ticker)
         news_list = yf_data.news
 
         for article in news_list:
@@ -59,6 +60,7 @@ class RiskAnalysis:
 
     def get_news_articles(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Fetch recent news articles for the stock"""
+        print('Fetching news articles for stock')
         articles = (self.db.query(NewsArticle)
                     .filter_by(stock_id=self.stock.stock_id)
                     .order_by(NewsArticle.publish_date.desc())
@@ -89,6 +91,7 @@ class RiskAnalysis:
 
     def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> SentimentAnalysisResponse:
         """Use Gemini to analyze news sentiment and store results in database"""
+        print('Generating news sentiment analysis')
         # Default sentiment for no articles or error cases
         default_sentiment_data = {
             "stability_score": 0,
@@ -110,6 +113,7 @@ class RiskAnalysis:
         }
 
         if not articles:
+            print('No articles found for sentiment analysis')
             sentiment_data = default_sentiment_data
         else:
             sentiment_response = None
@@ -117,8 +121,8 @@ class RiskAnalysis:
                 # Prepare news data for Gemini
                 news_text = self._format_news_articles(articles)
                 prompt = self._create_sentiment_prompt(news_text)
-
                 # Get response from Gemini
+                print('Generating sentiment analysis with Gemini')
                 sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
                                                                                 contents=prompt)
                 sentiment_data = parse_gemini_response(sentiment_response)
@@ -145,6 +149,7 @@ class RiskAnalysis:
 
     def _format_news_articles(self, articles: List[Dict[str, Any]]) -> str:
         """Format news articles for the Gemini prompt"""
+        print('Formatting news articles for Gemini')
         news_text = f"Recent news articles about {self.ticker}:\n\n"
 
         for i, article in enumerate(articles, 1):
@@ -163,6 +168,7 @@ class RiskAnalysis:
 
     def _create_sentiment_prompt(self, news_text: str) -> str:
         """Create the prompt for Gemini"""
+        print('Creating sentiment analysis prompt for Gemini')
         return f"""
         As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
 
@@ -193,6 +199,7 @@ class RiskAnalysis:
 
     def _validate_and_store_sentiment(self, sentiment_data: Dict[str, Any]) -> SentimentAnalysisResponse:
         """Validate sentiment data and store it in the database"""
+        print('Validating and storing sentiment data')
         try:
             # Parse the data through the Pydantic model for validation
             sentiment_model = SentimentAnalysisResponse(**sentiment_data)
@@ -247,6 +254,7 @@ class RiskAnalysis:
 
     def _store_fallback_sentiment(self, fallback_model: SentimentAnalysisResponse) -> None:
         """Store fallback sentiment in the database"""
+        print("Something has gone wrong storing fallback sentiment")
         try:
             existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -279,20 +287,25 @@ class RiskAnalysis:
 
     def get_news_sentiment(self, prefer_newest: bool = True) -> SentimentAnalysisResponse:
         """Fetch news sentiment for the stock"""
+        print("Getting news sentiment")
         if prefer_newest:
+            print("Generating brand new sentiment")
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles)
 
         # Check if sentiment already exists in the database
+        print("Checking existing sentiment")
         news_sentiment = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
-        # If no sentiment exists or it's older than 6 hours, fetch new sentiment
+        # If no sentiment exists, or it's older than 6 hours, fetch new sentiment
         if not news_sentiment or news_sentiment.created_at < datetime.utcnow() - timedelta(hours=6):
+            print("No sentiment found or found older sentiment")
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles)
 
         # Otherwise, construct a SentimentAnalysisResponse from the database record
         try:
+            print("Returning existing sentiment report")
             return SentimentAnalysisResponse(**news_sentiment.response_json)
         except ValidationError:
             # If the stored JSON is invalid, generate a new sentiment
@@ -301,10 +314,12 @@ class RiskAnalysis:
 
     def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity) -> None:
         """Store or update quantitative risk analysis in the database"""
+        print("Storing quantitative analysis record")
         try:
             existing_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
             if existing_analysis:
+                print("Updating existing report")
                 # Update existing record
                 existing_analysis.volatility = volatility
                 existing_analysis.beta = beta
@@ -316,12 +331,14 @@ class RiskAnalysis:
 
             else:
                 # Create new record
+                print("Creating new report")
                 quantitative_analysis = QuantitativeRiskAnalysis(
+                    volatility=to_python_type(volatility),
+                    beta=to_python_type(beta),
+                    rsi=to_python_type(rsi),
+                    volume_change=to_python_type(volume_change),
+                    debt_to_equity=to_python_type(debt_to_equity),
                     stock_id=self.stock.stock_id,
-                    volatility=volatility,
-                    beta=beta,
-                    rsi=rsi,
-                    volume_change=volume_change,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
                 )
@@ -335,6 +352,7 @@ class RiskAnalysis:
     def _generate_quantitative_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
                                                 quant_risk_score) -> Dict[str, str]:
         """Generate a risk explanation and label using Google Gemini API"""
+        print("Generating risk explanation")
         try:
             # Format values properly with conditional handling
             beta_str = f"{beta:.2f}" if beta is not None else "N/A"
@@ -406,6 +424,7 @@ class RiskAnalysis:
 
     def calculate_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Calculate key quantitative risk metrics"""
+        print('Calculating quantitative metrics')
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days + 30)  # Extra data for calculations
 
@@ -514,9 +533,11 @@ class RiskAnalysis:
 
     def get_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
+        print("Get quantitative metrics")
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
         if quantitative_analysis and quantitative_analysis.created_at > datetime.utcnow() - timedelta(days=2):
+            print("Existing metric exists")
             return {
                 "volatility": quantitative_analysis.volatility,
                 "beta": quantitative_analysis.beta,
@@ -526,10 +547,12 @@ class RiskAnalysis:
             }
 
         # If no recent analysis exists, calculate new metrics
+        print("No recent analysis found, calculating new metrics")
         return self.calculate_quantitative_metrics(lookback_days)
 
     def detect_anomalies(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Detect price, volume and other anomalies"""
+        print("Detect anomalies")
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days)
 
@@ -603,6 +626,7 @@ class RiskAnalysis:
 
     def get_esg_data(self) -> Dict[str, Any]:
         """Get ESG (Environmental, Social, Governance) risk data"""
+        print("Getting ESG data")
         try:
             # Try to get ESG data from yfinance
             esg_data = self.ticker_data.sustainability
@@ -637,6 +661,7 @@ class RiskAnalysis:
 
     def calculate_overall_risk(self) -> Dict[str, Any]:
         """Calculate overall risk score from all components"""
+        print("Calculating overall risk")
         # Get all risk components with assigned weights
         news_sentiment_risk = getattr(self.risk_components.get("news_sentiment", {}), "risk_score", 5)
 
@@ -669,27 +694,21 @@ class RiskAnalysis:
     def generate_risk_report(self, lookback_days: int = 30, news_limit: int = 10) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
         # Store news articles in the database
-        print('Storing news articles in the database...')
         self.store_news_for_ticker(self.db, self.ticker)
 
         # Analyze news sentiment
-        print('Analyzing news sentiment...')
         self.risk_components["news_sentiment"] = self.get_news_sentiment(prefer_newest=False)
 
         # Calculate quantitative metrics
-        print('Calculating quantitative metrics...')
         self.risk_components["quantitative"] = self.calculate_quantitative_metrics(lookback_days)
 
         # Detect anomalies
-        print('Detecting anomalies...')
         self.risk_components["anomalies"] = self.detect_anomalies(lookback_days)
 
         # Get ESG data
-        print("Getting ESG data...")
         self.risk_components["esg"] = self.get_esg_data()
 
         # Calculate overall risk
-        print('Calculating overall risk...')
         overall_risk = self.calculate_overall_risk()
 
         # Compile final report

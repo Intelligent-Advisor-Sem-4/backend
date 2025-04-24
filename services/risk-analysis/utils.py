@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Any, Dict
-
 import numpy as np
 from models.models import NewsArticle, RelatedArticle, Stock
 
@@ -133,3 +132,12 @@ def parse_gemini_response(response) -> Dict[str, Any]:
         sentiment_data["risk_score"] = risk_score
 
     return sentiment_data
+
+
+def to_python_type(value):
+    """Convert numpy types to Python native types."""
+    if value is None:
+        return None
+    if hasattr(value, "item"):  # This checks if it's a numpy type
+        return value.item()  # .item() converts numpy scalar to Python scalar
+    return value

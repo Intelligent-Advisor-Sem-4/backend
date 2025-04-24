@@ -155,7 +155,7 @@ if __name__ == "__main__":
     try:
         # Create a new stock
         try:
-            stock = create_stock(session, "TSLA")
+            stock = create_stock(session, "AAPL")
             print(f"Created stock: {stock}")
         except ValueError as e:
             print(e)
