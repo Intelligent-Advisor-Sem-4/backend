@@ -29,7 +29,7 @@ async def token_verification_middleware(request: Request, call_next):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-        required_fields = ["sub", "user_id", "role", "username"]
+        required_fields = ["sub", "user_id", "role"]
         for field in required_fields:
             if field not in payload:
                 return JSONResponse(status_code=401, content={"detail": f"Missing '{field}' in token"})

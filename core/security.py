@@ -39,7 +39,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=100000))
     to_encode.update({"exp": expire})
 
-    required_fields = ["sub", "user_id", "role", "username"]
+    required_fields = ["sub", "user_id", "role"]
     for field in required_fields:
         if field not in to_encode:
             raise ValueError(f"The '{field}' claim must be set in the token")
