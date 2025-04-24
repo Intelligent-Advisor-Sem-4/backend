@@ -99,7 +99,8 @@ def create_stock(db: Session, symbol: str) -> Stock:
 
         stock = Stock(
             ticker_symbol=symbol,
-            asset_name=basic_info.get('shortName') or basic_info.get('longName') or info.get('shortName') or info.get('longName') or history_metadata.get('shortName') or history_metadata.get('longName') or symbol,
+            asset_name=basic_info.get('shortName') or basic_info.get('longName') or info.get('shortName') or info.get(
+                'longName') or history_metadata.get('shortName') or history_metadata.get('longName') or symbol,
             currency=basic_info.currency,
             type=basic_info.quote_type,
             exchange=basic_info.exchange,
@@ -155,7 +156,7 @@ if __name__ == "__main__":
     try:
         # Create a new stock
         try:
-            stock = create_stock(session, "AAPL")
+            stock = create_stock(session, "NVDA")
             print(f"Created stock: {stock}")
         except ValueError as e:
             print(e)

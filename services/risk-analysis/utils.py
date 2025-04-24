@@ -1,6 +1,9 @@
 from datetime import datetime
 from typing import Any, Dict
 import numpy as np
+from sqlalchemy.orm import Session
+
+from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
 from models.models import NewsArticle, RelatedArticle, Stock
 
 
@@ -74,41 +77,6 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
     }
 
 
-def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
-    """
-    Calculate standardized risk scores on a 0-10 scale for different metrics.
-
-    Args:
-        volatility (float): Annualized volatility percentage
-        beta (float or None): Market beta coefficient
-        rsi (float): Relative Strength Index value
-        volume_change (float): Recent volume change percentage
-        debt_to_equity (float or None): Debt to equity ratio
-
-    Returns:
-        dict: Dictionary containing individual risk scores and overall risk score
-    """
-    # Calculate individual risk scores (0-10 scale)
-    volatility_score = min(10.0, volatility / 5)  # Higher volatility = higher risk
-    beta_score = min(10.0, abs(beta) * 3) if beta is not None else 5  # Higher absolute beta = higher risk
-    rsi_risk = min(10.0, abs(rsi - 50) / 5)  # Extreme RSI = higher risk
-    volume_score = min(10.0, abs(volume_change) / 10)  # Abnormal volume = higher risk
-    debt_risk = min(10.0, debt_to_equity / 100) if debt_to_equity is not None else 5  # Higher debt = higher risk
-
-    # Combine into overall quantitative risk score
-    quant_risk_score = np.mean(
-        [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk] if x is not None])
-
-    return {
-        "volatility_score": float(volatility_score),
-        "beta_score": float(beta_score) if beta is not None else None,
-        "rsi_risk": float(rsi_risk),
-        "volume_risk": float(volume_score),
-        "debt_risk": float(debt_risk) if debt_to_equity is not None else None,
-        "quant_risk_score": float(quant_risk_score)
-    }
-
-
 def parse_gemini_response(response) -> Dict[str, Any]:
     """Parse and clean Gemini's response"""
     import json
@@ -141,3 +109,23 @@ def to_python_type(value):
     if hasattr(value, "item"):  # This checks if it's a numpy type
         return value.item()  # .item() converts numpy scalar to Python scalar
     return value
+
+
+default_sentiment = SentimentAnalysisResponse(
+    stability_score=0,
+    stability_label="Stable",
+    key_risks=KeyRisks(),
+    security_assessment="No recent news articles available for analysis.",
+    customer_suitability="Suitable",
+    suggested_action="Monitor",
+    risk_rationale=["No recent news available for analysis."],
+    news_highlights=[],
+    risk_score=5
+)
+
+
+def get_stock_by_ticker(db: Session, ticker: str) -> Stock:
+    stock = db.query(Stock).filter_by(ticker_symbol=ticker).first()
+    if not stock:
+        raise ValueError(f"Stock with symbol '{ticker}' not found in database")
+    return stock
