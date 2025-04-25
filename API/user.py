@@ -53,8 +53,6 @@ async def update_user_password(
 @router.post("/user/reg", status_code=status.HTTP_201_CREATED, response_model=RegistrationResponse)
 async def register_user(user_data: UserRegistration, db: Session = Depends(get_db)):
     # Check if username already exists
-    print('user_data:', user_data)
-
     existing_username = db.query(UserModel).filter(UserModel.username == user_data.username).first()
     if existing_username:
         raise HTTPException(
