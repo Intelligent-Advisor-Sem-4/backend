@@ -51,6 +51,7 @@ class MinimalStockInfo(BaseModel):
     exchange: Optional[str]
     market: Optional[str]
     riskLevel: Optional[str]
+    in_db: Optional[bool]
 
 
 class ScreenerResponseMinimal(BaseModel):

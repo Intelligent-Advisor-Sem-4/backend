@@ -1,5 +1,7 @@
+from typing import Union, Dict, Any
+
 import yfinance as yf
-from classes.stock_screener import ScreenerType
+from classes.stock_screener import ScreenerType, ScreenerResponseMinimal
 from sqlalchemy.orm import Session
 from datetime import date
 
@@ -19,8 +21,9 @@ def calculate_risk(s):
     return "Low"
 
 
-def run_stock_screen(screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offset=0, size=25, custom_query=None,
-                     minimal: bool = False):
+def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offset=0, size=25,
+                     custom_query=None,
+                     minimal: bool = False) -> Union[Dict[str, Any], ScreenerResponseMinimal]:
     """
     Run a stock or fund screener using predefined queries or a custom query.
     """
@@ -52,14 +55,26 @@ def run_stock_screen(screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offs
         offset=offset,
         size=size,
         sortField=sort_field,
-        sortAsc=sort_asc
+        sortAsc=sort_asc,
     )
 
     quotes = response.get("quotes", [])
 
     if minimal:
+        # Calculate risk for each quote
         for q in quotes:
             q["riskLevel"] = calculate_risk(q)
+
+        # Get all symbols from the quotes
+        symbols = [q["symbol"] for q in quotes]
+
+        # Fetch all stocks with these symbols in a single query
+        db_stocks = db.query(Stock.ticker_symbol).filter(Stock.ticker_symbol.in_(symbols)).all()
+
+        # Create a set of symbols that exist in the database for O(1) lookups
+        db_symbols = {stock.ticker_symbol for stock in db_stocks}
+
+        # Now create the minimal response with efficient in_db check
         return {
             "quotes": [
                 {
@@ -74,6 +89,7 @@ def run_stock_screen(screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offs
                     "exchange": q.get("exchange"),
                     "market": q.get("market"),
                     "riskLevel": q.get("riskLevel"),
+                    "in_db": q.get("symbol") in db_symbols,  # O(1) lookup in a set
                 }
                 for q in quotes
             ],
@@ -153,6 +169,7 @@ if __name__ == "__main__":
     try:
         # Create a new stock
         try:
+            run_stock_screen(db=session, screen_type=ScreenerType.MOST_ACTIVES, offset=0, size=10, minimal=True)
             stock = create_stock(session, "NVDA")
             print(f"Created stock: {stock}")
         except ValueError as e:
