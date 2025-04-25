@@ -40,7 +40,7 @@ class AssetType(enum.Enum):
 class UserModel(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     birthday = Column(DateTime, nullable=False)
     gender = Column(Enum(Gender), nullable=False)

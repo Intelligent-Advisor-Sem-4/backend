@@ -24,7 +24,8 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
-    access_token = create_access_token(data={"sub": db_user.username, "role": db_user.access_level.value, "user_id": db_user.id})
+    access_token = create_access_token(
+        data={"sub": db_user.username, "role": db_user.access_level.value, "user_id": db_user.id})
 
     return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level,
                          user_id=str(db_user.id),
@@ -72,7 +73,6 @@ async def register_user(user_data: UserRegistration, db: Session = Depends(get_d
     # Create new user
     try:
         new_user = UserModel(
-            id=uuid4(),
             name=user_data.name,
             username=user_data.username,
             email=str(user_data.email),
