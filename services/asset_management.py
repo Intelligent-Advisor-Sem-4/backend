@@ -1,9 +1,8 @@
 from typing import Union, Dict, Any
 
 import yfinance as yf
-from classes.stock_screener import ScreenerType, ScreenerResponseMinimal
+from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, SECTOR_SCREENER_QUERIES
 from sqlalchemy.orm import Session
-from datetime import date
 
 from db.dbConnect import get_db
 from models.models import Stock, AssetStatus  # assuming your model is in models.py
@@ -37,17 +36,25 @@ def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_
         sort_asc = True if sort_type and sort_type.upper() == 'ASC' else False
     else:
         # Check if the screen_type is in predefined queries
-        if screen_type_str not in yf.PREDEFINED_SCREENER_QUERIES:
+        if screen_type_str in yf.PREDEFINED_SCREENER_QUERIES:
+            # Get the predefined query
+            predefined = yf.PREDEFINED_SCREENER_QUERIES[screen_type_str]
+            query = predefined.get('query')
+            sort_field = predefined.get('sortField', None)
+            sort_type = predefined.get('sortType', None)
+            sort_asc = True if sort_type and sort_type.upper() == 'ASC' else False
+        elif screen_type_str in SECTOR_SCREENER_QUERIES:
+            # Get the predefined query
+            predefined = SECTOR_SCREENER_QUERIES[screen_type_str]
+            query = predefined.get('query')
+            sort_field = predefined.get('sortField', None)
+            sort_type = predefined.get('sortType', None)
+            sort_asc = True if sort_type and sort_type.upper() == 'ASC' else False
+        else:
             available_types = list(yf.PREDEFINED_SCREENER_QUERIES.keys())
+            available_types.append(list(SECTOR_SCREENER_QUERIES.keys()))
             raise ValueError(f"Screen type '{screen_type_str}' not found in predefined queries. "
                              f"Available types: {available_types}")
-
-        # Get the predefined query
-        predefined = yf.PREDEFINED_SCREENER_QUERIES[screen_type_str]
-        query = predefined.get('query')
-        sort_field = predefined.get('sortField', None)
-        sort_type = predefined.get('sortType', None)
-        sort_asc = True if sort_type and sort_type.upper() == 'ASC' else False
 
     # Run the screen
     response = yf.screen(
@@ -169,7 +176,7 @@ if __name__ == "__main__":
     try:
         # Create a new stock
         try:
-            run_stock_screen(db=session, screen_type=ScreenerType.MOST_ACTIVES, offset=0, size=10, minimal=True)
+            run_stock_screen(db=session, screen_type=ScreenerType.TECHNOLOGY, offset=0, size=10, minimal=True)
             stock = create_stock(session, "NVDA")
             print(f"Created stock: {stock}")
         except ValueError as e:

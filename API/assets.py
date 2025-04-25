@@ -4,9 +4,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends, status
 from sqlalchemy.orm import Session
 
 from classes.Stock import StockResponse
-from classes.stock_screener import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
+from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
 from db.dbConnect import get_db
-from models.models import Stock
 from services.asset_management import run_stock_screen, create_stock
 
 router = APIRouter(prefix='/assets')
