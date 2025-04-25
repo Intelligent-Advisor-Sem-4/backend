@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from classes.Stock import StockResponse
 from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
 from db.dbConnect import get_db
-from services.asset_management import run_stock_screen, create_stock
+from services.asset_screening import run_stock_screen
+from services.asset_management import create_stock
 
 router = APIRouter(prefix='/assets')
 
