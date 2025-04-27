@@ -64,11 +64,13 @@ class Stock(Base):
     type = Column(String(50), nullable=True)  # Made optional
     first_data_point_date = Column(Date, nullable=True)
     last_data_point_date = Column(Date, nullable=True)
+    risk_score = Column(Numeric(10, 2), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # --- Relationships ---
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
-    news_articles = relationship("NewsArticle", back_populates="stock", cascade="all, delete-orphan")
     news_risk_analysis = relationship("NewsRiskAnalysis", back_populates="stock", cascade="all, delete-orphan")
     quantitative_risk_analysis = relationship("QuantitativeRiskAnalysis", back_populates="stock",
                                               cascade="all, delete-orphan")
