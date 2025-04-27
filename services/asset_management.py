@@ -1,3 +1,5 @@
+import sys
+
 import yfinance as yf
 from sqlalchemy.orm import Session
 
@@ -64,3 +66,15 @@ def delete_stock(db: Session, stock_id: int) -> None:
 
     db.delete(stock)
     db.commit()
+
+
+if __name__ == "__main__":
+    # Example usage
+    from db.dbConnect import get_db
+
+    db = get_db()
+    try:
+        ticker = yf.Ticker("NVDA")
+        print(ticker.info["longName"])
+    finally:
+        db.close()
