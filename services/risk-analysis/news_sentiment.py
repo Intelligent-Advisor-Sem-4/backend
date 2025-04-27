@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from yfinance import Ticker
 
 from classes.Sentiment import SentimentAnalysisResponse
-from models.models import NewsArticle, NewsRiskAnalysis
+from models.models import NewsRiskAnalysis
 from services.utils import parse_news_article, default_sentiment, parse_gemini_response, get_stock_by_ticker
+from classes.News import NewsArticle
 
 
 class NewsSentimentService:
@@ -18,49 +19,13 @@ class NewsSentimentService:
         self.ticker = ticker
         self.ticker_data = ticker_data
 
-    def store_news_for_ticker(self) -> None:
-        """Store the news sentiments for a ticker symbol in the database"""
-        print('Storing news articles for ticker:', self.ticker)
-        news_list = self.ticker_data.get_news(count=10)
-
-        for article in news_list:
-            if not self.db.query(NewsArticle).filter_by(news_id=article["id"]).first():
-                news_obj = parse_news_article(self.stock.stock_id, article)
-                self.db.add(news_obj)
-
-        self.db.commit()
-
-    def get_news_articles(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_news_articles(self, limit: int = 10) -> List[NewsArticle]:
         """Fetch recent news articles for the stock"""
         print('Fetching news articles for stock')
-        articles = (self.db.query(NewsArticle)
-                    .filter_by(stock_id=self.stock.stock_id)
-                    .order_by(NewsArticle.publish_date.desc())
-                    .limit(limit)
-                    .all())
+        articles = self.ticker_data.get_news(count=limit)
+        return [parse_news_article(article) for article in articles]
 
-        results = []
-        for article in articles:
-            article_dict = {
-                "news_id": article.news_id,
-                "title": article.title,
-                "summary": article.summary,
-                "description": article.description,
-                "publish_date": article.publish_date.isoformat(),
-                "provider_name": article.provider_name,
-                "related_articles": []
-            }
-
-            for related in article.related_articles:
-                article_dict["related_articles"].append({
-                    "title": related.title,
-                    "provider_name": related.provider_name
-                })
-
-            results.append(article_dict)
-        return results
-
-    def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> SentimentAnalysisResponse:
+    def generate_news_sentiment(self, articles: List[NewsArticle]) -> SentimentAnalysisResponse:
         """Use Gemini to analyze news sentiment and store results in database"""
         print('Generating news sentiment analysis')
         # Default sentiment for no articles or error cases
@@ -206,7 +171,7 @@ class NewsSentimentService:
             self.db.rollback()
             print(f"[Database Error] Failed to store fallback analysis: {db_err}")
 
-    def _format_news_articles(self, articles: List[Dict[str, Any]]) -> str:
+    def _format_news_articles(self, articles: List[NewsArticle]) -> str:
         """Format news articles for the Gemini prompt"""
         print('Formatting news articles for Gemini')
         news_text = f"Recent news articles about {self.ticker}:\n\n"

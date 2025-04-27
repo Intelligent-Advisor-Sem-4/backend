@@ -4,10 +4,11 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
-from models.models import NewsArticle, RelatedArticle, Stock
+from classes.News import NewsArticle, RelatedArticle
+from models.models import Stock
 
 
-def parse_news_article(stock_id: int, article: dict) -> NewsArticle:
+def parse_news_article(article: dict) -> NewsArticle:
     content = article.get("content", {})
     provider = content.get("provider", {})
     canonical_url = content.get("canonicalUrl", {}).get("url", "")
@@ -26,7 +27,6 @@ def parse_news_article(stock_id: int, article: dict) -> NewsArticle:
 
     news = NewsArticle(
         news_id=article["id"],
-        stock_id=stock_id,
         title=content.get("title"),
         summary=content.get("summary"),
         description=content.get("description"),

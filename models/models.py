@@ -160,41 +160,6 @@ class ExplainabilityReport(Base):
     explanation_type = Column(String)  # e.g., "SHAP", "LIME", "Gemini"
 
 
-class NewsArticle(Base):
-    __tablename__ = 'news_articles'
-
-    news_id = Column(String(64), primary_key=True)  # Yahoo gives string UUIDs
-    stock_id = Column(Integer, ForeignKey('stocks.stock_id'))
-
-    title = Column(String(255))
-    summary = Column(Text)
-    description = Column(Text)
-    content_type = Column(String(50))
-    publish_date = Column(DateTime)
-    thumbnail_url = Column(String(500))
-    canonical_url = Column(String(500))
-    provider_name = Column(String(100))
-
-    stock = relationship("Stock", back_populates="news_articles")
-
-    related_articles = relationship("RelatedArticle", back_populates="main_article", cascade="all, delete-orphan")
-
-
-class RelatedArticle(Base):
-    __tablename__ = 'related_articles'
-
-    related_id = Column(Integer, primary_key=True, autoincrement=True)
-    news_id = Column(String(64), ForeignKey('news_articles.news_id', ondelete="CASCADE"), nullable=False)
-
-    title = Column(String(255))
-    url = Column(String(500))
-    content_type = Column(String(50))
-    thumbnail_url = Column(String(500))
-    provider_name = Column(String(100))
-
-    main_article = relationship("NewsArticle", back_populates="related_articles")
-
-
 class NewsRiskAnalysis(Base):
     __tablename__ = "news_risk_analysis"
 
