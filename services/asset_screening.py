@@ -6,19 +6,7 @@ from sqlalchemy.orm import Session
 
 from db.dbConnect import get_db
 from models.models import Stock  # assuming your model is in models.py
-from services.asset_management import create_stock
-
-
-def calculate_risk(s):
-    volatility = s.get("fiftyTwoWeekHigh", 0) - s.get("fiftyTwoWeekLow", 0)
-    market_cap = s.get("marketCap", 0)
-    pe = s.get("forwardPE", 0) or s.get("trailingPE", 0)
-
-    if not market_cap or market_cap < 1e9:
-        return "High"
-    if pe > 40 or volatility > 50:
-        return "Medium"
-    return "Low"
+from services.utils import calculate_shallow_risk
 
 
 def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_ACTIVES, offset=0, size=25,
@@ -71,7 +59,7 @@ def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_
     if minimal:
         # Calculate risk for each quote
         for q in quotes:
-            q["riskLevel"] = calculate_risk(q)
+            q["riskLevel"] = calculate_shallow_risk(q)
 
         # Get all symbols from the quotes
         symbols = [q["symbol"] for q in quotes]
@@ -116,8 +104,6 @@ if __name__ == "__main__":
         # Create a new stock
         try:
             run_stock_screen(db=session, screen_type=ScreenerType.TECHNOLOGY, offset=0, size=10, minimal=True)
-            stock = create_stock(session, "NVDA")
-            print(f"Created stock: {stock}")
         except ValueError as e:
             print(e)
     finally:

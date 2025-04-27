@@ -183,3 +183,99 @@ def get_stock_by_ticker(db: Session, ticker: str) -> Stock:
     if not stock:
         raise ValueError(f"Stock with symbol '{ticker}' not found in database")
     return stock
+
+
+def calculate_shallow_risk(s):
+    """
+    Calculate risk level for a stock based on available financial metrics.
+    Handles missing data gracefully and provides a risk assessment
+    based on multiple factors.
+
+    Args:
+        s (dict): Stock quote data containing financial metrics
+
+    Returns:
+        str: Risk level - "High", "Medium", or "Low"
+    """
+    # Initialize risk points system
+    risk_points = 0
+    metrics_used = 0
+
+    # --- Market Cap (size risk) ---
+    market_cap = s.get("marketCap")
+    if market_cap is not None:
+        metrics_used += 1
+        if market_cap < 1e9:  # Small cap (below $1B)
+            risk_points += 3
+        elif market_cap < 10e9:  # Mid cap ($1B-$10B)
+            risk_points += 1
+
+    # --- Volatility risk ---
+    high = s.get("fiftyTwoWeekHigh")
+    low = s.get("fiftyTwoWeekLow")
+    if high is not None and low is not None and low > 0:
+        metrics_used += 1
+        # Calculate volatility as percentage between high and low
+        volatility = ((high - low) / low) * 100
+        if volatility > 70:
+            risk_points += 3
+        elif volatility > 40:
+            risk_points += 2
+        elif volatility > 20:
+            risk_points += 1
+
+    # --- PE ratio (valuation risk) ---
+    pe = s.get("forwardPE") or s.get("trailingPE")
+    if pe is not None:
+        metrics_used += 1
+        if pe < 0:  # Negative earnings
+            risk_points += 3
+        elif pe > 50:  # Very high PE
+            risk_points += 2
+        elif pe > 30:  # High PE
+            risk_points += 1
+
+    # --- EPS (earnings risk) ---
+    eps = s.get("epsTrailingTwelveMonths") or s.get("epsCurrentYear") or s.get("epsForward")
+    if eps is not None:
+        metrics_used += 1
+        if eps < 0:  # Negative earnings
+            risk_points += 3
+        elif eps < 1 and market_cap and market_cap > 1e9:  # Low earnings for larger companies
+            risk_points += 2
+
+    # --- Debt (if available) ---
+    debt_to_equity = s.get("debtToEquity")
+    if debt_to_equity is not None:
+        metrics_used += 1
+        if debt_to_equity > 200:  # Very high debt
+            risk_points += 3
+        elif debt_to_equity > 100:  # High debt
+            risk_points += 2
+        elif debt_to_equity > 50:  # Moderate debt
+            risk_points += 1
+
+    # --- Beta (market correlation risk) ---
+    beta = s.get("beta")
+    if beta is not None:
+        metrics_used += 1
+        if abs(beta) > 2:  # Very volatile compared to market
+            risk_points += 2
+        elif abs(beta) > 1.5:  # More volatile than market
+            risk_points += 1
+
+    # Calculate average risk score, ensuring at least one metric was used
+    avg_risk = risk_points / max(metrics_used, 1)
+
+    # Set minimum metrics threshold to have confidence in assessment
+    if metrics_used < 2:
+        # With limited data, err on the side of caution
+        return "Medium" if avg_risk < 1.5 else "High"
+
+    # Determine risk level based on average risk score
+    if avg_risk < 0.8:
+        return "Low"
+    elif avg_risk < 1.8:
+        return "Medium"
+    else:
+        return "High"
