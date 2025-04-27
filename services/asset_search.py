@@ -75,3 +75,5 @@ if __name__ == "__main__":
     print(f"Found {len(result.news)} news items and {len(result.quotes)} quotes")
     print("\nFirst news item:", result.news[0].model_dump() if result.news else "None")
     print("\nFirst quote:", result.quotes[0].model_dump() if result.quotes else "None")
+    news = yf.Ticker(ticker="AAPL").get_news()
+    print(news)

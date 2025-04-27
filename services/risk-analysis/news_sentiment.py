@@ -21,7 +21,7 @@ class NewsSentimentService:
     def store_news_for_ticker(self) -> None:
         """Store the news sentiments for a ticker symbol in the database"""
         print('Storing news articles for ticker:', self.ticker)
-        news_list = self.ticker_data.news
+        news_list = self.ticker_data.get_news(count=10)
 
         for article in news_list:
             if not self.db.query(NewsArticle).filter_by(news_id=article["id"]).first():
@@ -58,7 +58,6 @@ class NewsSentimentService:
                 })
 
             results.append(article_dict)
-
         return results
 
     def generate_news_sentiment(self, articles: List[Dict[str, Any]]) -> SentimentAnalysisResponse:

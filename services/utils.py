@@ -11,7 +11,18 @@ def parse_news_article(stock_id: int, article: dict) -> NewsArticle:
     content = article.get("content", {})
     provider = content.get("provider", {})
     canonical_url = content.get("canonicalUrl", {}).get("url", "")
-    thumbnail_url = content.get("thumbnail", {}).get("resolutions", [{}])[0].get("url", "")
+    thumbnail_data = content.get("thumbnail", {})
+    resolutions = thumbnail_data.get("resolutions", [])
+
+    if resolutions:
+        # Find the smallest thumbnail by area (width × height)
+        smallest_resolution = min(
+            resolutions,
+            key=lambda x: x.get("width", float("inf")) * x.get("height", float("inf"))
+        )
+        thumbnail_url = smallest_resolution.get("url", "")
+    else:
+        thumbnail_url = ""
 
     news = NewsArticle(
         news_id=article["id"],
