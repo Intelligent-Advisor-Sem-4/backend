@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -7,8 +8,27 @@ from yfinance import Ticker
 
 from classes.Sentiment import SentimentAnalysisResponse
 from models.models import NewsRiskAnalysis
-from services.utils import parse_news_article, default_sentiment, parse_gemini_response, get_stock_by_ticker
+from services.utils import parse_news_article, default_sentiment, get_stock_by_ticker, parse_gemini_json_response
 from classes.News import NewsArticle
+
+
+def parse_gemini_response(response) -> Dict[str, Any]:
+    """Parse and clean Gemini's response"""
+    try:
+        # Use common utility function to parse the response
+        sentiment_data = parse_gemini_json_response(response.text)
+
+        # Add risk score based on sentiment if it's not already there
+        if "risk_score" not in sentiment_data:
+            risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
+            sentiment_data["risk_score"] = risk_score
+
+        return sentiment_data
+
+    except json.JSONDecodeError as e:
+        print(f"Error parsing Gemini response: {e}")
+        # Return default sentiment data or raise the exception
+        raise
 
 
 class NewsSentimentService:
@@ -61,7 +81,7 @@ class NewsSentimentService:
                 print('Generating sentiment analysis with Gemini')
                 sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
                                                                                 contents=prompt)
-                sentiment_data = parse_gemini_response(sentiment_response)
+                sentiment_data = _parse_gemini_response(sentiment_response)
 
             except Exception as e:
                 print(f"[Gemini Analysis Error] Exception: {e}")

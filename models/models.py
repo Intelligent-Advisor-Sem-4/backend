@@ -192,6 +192,7 @@ class QuantitativeRiskAnalysis(Base):
     rsi = Column(Numeric(10, 4), nullable=True)
     volume_change = Column(Numeric(10, 4), nullable=True)
     debt_to_equity = Column(Numeric(10, 4), nullable=True)
+    eps = Column(Numeric(10, 4), nullable=True)
     stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)

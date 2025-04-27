@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     db = get_db()
     try:
-        ticker = yf.Ticker("NVDA")
+        ticker = yf.Ticker("AAPL")
         print(ticker.info["longName"])
     finally:
         db.close()

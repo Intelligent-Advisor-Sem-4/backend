@@ -53,7 +53,7 @@ def parse_news_article(article: dict) -> NewsArticle:
     return news
 
 
-def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
+def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, eps=None):
     """
     Calculate standardized risk scores on a 0-10 scale for different metrics.
 
@@ -63,6 +63,7 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
         rsi (float): Relative Strength Index value
         volume_change (float): Recent volume change percentage
         debt_to_equity (float or None): Debt to equity ratio
+        eps (float or None): Trailing Earnings Per Share
 
     Returns:
         dict: Dictionary containing individual risk scores and overall risk score
@@ -74,9 +75,19 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
     volume_score = min(10.0, abs(volume_change) / 10)  # Abnormal volume = higher risk
     debt_risk = min(10.0, debt_to_equity / 100) if debt_to_equity is not None else 5  # Higher debt = higher risk
 
+    # Non-linear EPS risk scoring
+    eps_risk = 5  # Default neutral score if EPS is None
+    if eps is not None:
+        if eps < 0:
+            # Negative EPS = higher risk (non-linear: more negative = exponentially higher risk)
+            eps_risk = min(10.0, 7.0 + min(3.0, abs(eps) / 2))  # 7-10 range for negative EPS
+        else:
+            # Positive EPS = lower risk (non-linear: diminishing returns for very high EPS)
+            eps_risk = max(0.0, 5.0 - min(5.0, np.sqrt(eps)))  # 0-5 range for positive EPS
+
     # Combine into overall quantitative risk score
     quant_risk_score = np.mean(
-        [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk] if x is not None])
+        [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk, eps_risk] if x is not None])
 
     return {
         "volatility_score": float(volatility_score),
@@ -84,14 +95,52 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity):
         "rsi_risk": float(rsi_risk),
         "volume_risk": float(volume_score),
         "debt_risk": float(debt_risk) if debt_to_equity is not None else None,
+        "eps_risk": float(eps_risk) if eps is not None else None,
         "quant_risk_score": float(quant_risk_score)
     }
 
 
-def parse_gemini_response(response) -> Dict[str, Any]:
-    """Parse and clean Gemini's response"""
+# def parse_gemini_response(response) -> Dict[str, Any]:
+#     """Parse and clean Gemini's response"""
+#     import json
+#     response_text = response.text.strip()
+#
+#     # Remove markdown code block formatting if present
+#     if response_text.startswith('```json'):
+#         json_content = response_text[7:].strip()
+#         if json_content.endswith('```'):
+#             json_content = json_content[:-3].strip()
+#     elif response_text.startswith('```') and response_text.endswith('```'):
+#         json_content = response_text[3:-3].strip()
+#     else:
+#         json_content = response_text
+#
+#     sentiment_data = json.loads(json_content)
+#
+#     # Add risk score based on sentiment if it's not already there
+#     if "risk_score" not in sentiment_data:
+#         risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
+#         sentiment_data["risk_score"] = risk_score
+#
+#     return sentiment_data
+
+def parse_gemini_json_response(response_text: str) -> dict:
+    """
+    Parse JSON response from Gemini API, handling different response formats.
+
+    Args:
+        response_text (str): The raw text response from Gemini
+
+    Returns:
+        dict: Parsed JSON content
+
+    Raises:
+        json.JSONDecodeError: If parsing fails
+    """
     import json
-    response_text = response.text.strip()
+
+    # Clean up the response text
+    response_text = response_text.strip()
 
     # Remove markdown code block formatting if present
     if response_text.startswith('```json'):
@@ -103,14 +152,8 @@ def parse_gemini_response(response) -> Dict[str, Any]:
     else:
         json_content = response_text
 
-    sentiment_data = json.loads(json_content)
-
-    # Add risk score based on sentiment if it's not already there
-    if "risk_score" not in sentiment_data:
-        risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
-        sentiment_data["risk_score"] = risk_score
-
-    return sentiment_data
+    # Parse the JSON content
+    return json.loads(json_content)
 
 
 def to_python_type(value):
