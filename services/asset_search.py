@@ -1,32 +1,5 @@
 import yfinance as yf
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-
-
-class NewsResponse(BaseModel):
-    uuid: str
-    title: str
-    publisher: Optional[str] = None
-    link: str
-    providerPublishedTime: Optional[str] = None
-    thumbnail: Optional[str] = None
-    relatedTickers: Optional[List[str]] = None
-
-
-class QuoteResponse(BaseModel):
-    symbol: str
-    shortName: Optional[str] = None
-    quoteType: Optional[str] = None
-    exchange: Optional[str] = None
-    sector: Optional[str] = None
-    sectorDisplay: Optional[str] = None
-    industry: Optional[str] = None
-    industryDisplay: Optional[str] = None
-
-
-class SearchResult(BaseModel):
-    news: List[NewsResponse]
-    quotes: List[QuoteResponse]
+from classes.Search import NewsResponse, SearchResult, QuoteResponse
 
 
 def yfinance_search(query: str, news_count: int = 8, quote_count: int = 5) -> SearchResult:
@@ -70,9 +43,12 @@ def yfinance_search(query: str, news_count: int = 8, quote_count: int = 5) -> Se
         )
         processed_news.append(news_item)
 
+    # Filter out quotes with empty symbols first
+    valid_quotes = [item for item in quotes_data if item.get("symbol", "").strip()]
+
     # Process quotes: sort by score and limit to quote_count
     sorted_quotes = sorted(
-        quotes_data,
+        valid_quotes,
         key=lambda x: x.get("score", 0),
         reverse=True
     )[:quote_count]
@@ -81,7 +57,7 @@ def yfinance_search(query: str, news_count: int = 8, quote_count: int = 5) -> Se
     for item in sorted_quotes:
         quote_item = QuoteResponse(
             symbol=item.get("symbol", ""),
-            shortName=item.get("shortName", None),
+            shortName=item.get("shortname", None),  # Note: Using "shortname" (lowercase) as in your original code
             quoteType=item.get("quoteType", None),
             exchange=item.get("exchange", None),
             sector=item.get("sector", None),
@@ -93,10 +69,9 @@ def yfinance_search(query: str, news_count: int = 8, quote_count: int = 5) -> Se
 
     return SearchResult(news=processed_news, quotes=processed_quotes)
 
-
 if __name__ == "__main__":
     # Example usage
-    result = yfinance_search("samsung")
+    result = yfinance_search("nokia")
     print(f"Found {len(result.news)} news items and {len(result.quotes)} quotes")
     print("\nFirst news item:", result.news[0].model_dump() if result.news else "None")
     print("\nFirst quote:", result.quotes[0].model_dump() if result.quotes else "None")

@@ -1,13 +1,16 @@
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends, status
 from sqlalchemy.orm import Session
 
 from classes.Stock import StockResponse
 from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
+from core.middleware import logger
 from db.dbConnect import get_db
 from services.asset_screening import run_stock_screen
 from services.asset_management import create_stock
+from classes.Search import SearchResult
+from services.asset_search import yfinance_search
 
 router = APIRouter(prefix='/assets')
 
@@ -97,6 +100,47 @@ def api_create_stock(ticker: str, db: Session = Depends(get_db)):
             )
     except Exception as e:
         # Log the unexpected exception here
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
+
+
+@router.get("/search", response_model=SearchResult)
+async def search(
+        query: str = Query(..., description="Search query string"),
+        news_count: Optional[int] = Query(8, description="Number of news articles to fetch", ge=1, le=50),
+        quote_count: Optional[int] = Query(5, description="Number of quotes to fetch", ge=1, le=20)
+) -> SearchResult:
+    """
+    Search Yahoo Finance for news and quotes related to the query.
+
+    Parameters:
+    - query: Search term
+    - news_count: Number of news articles to return (default: 8)
+    - quote_count: Number of quotes to return (default: 5)
+
+    Returns:
+    - SearchResult object containing lists of news articles and quotes
+    """
+    try:
+        result = yfinance_search(query=query, news_count=news_count, quote_count=quote_count)
+        return result
+    except ValueError as e:
+        if "connection" in str(e).lower() or "timeout" in str(e).lower():
+            logger.error(f"Connection error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable. Please try again later."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+    except Exception as e:
+        # Log the unexpected exception
+        logger.error(f"Unexpected error in search endpoint: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred: {str(e)}"
