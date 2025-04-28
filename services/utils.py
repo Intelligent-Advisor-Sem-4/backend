@@ -196,11 +196,14 @@ def calculate_shallow_risk(s):
         s (dict): Stock quote data containing financial metrics
 
     Returns:
-        str: Risk level - "High", "Medium", or "Low"
+        tuple: (str, float) containing:
+            - Risk level: "High", "Medium", or "Low"
+            - Risk score: Float between 0-10, where 10 is highest risk
     """
     # Initialize risk points system
     risk_points = 0
     metrics_used = 0
+    max_points_per_metric = 3  # Maximum points per metric for normalization
 
     # --- Market Cap (size risk) ---
     market_cap = s.get("marketCap")
@@ -265,18 +268,128 @@ def calculate_shallow_risk(s):
         elif abs(beta) > 1.5:  # More volatile than market
             risk_points += 1
 
-    # Calculate average risk score, ensuring at least one metric was used
-    avg_risk = risk_points / max(metrics_used, 1)
+    # Calculate risk score on a 0-10 scale
+    if metrics_used == 0:
+        # No metrics available, return a middle-range risk score
+        risk_score = 5.0
+    else:
+        # Maximum possible points is metrics_used * max_points_per_metric
+        max_possible_points = metrics_used * max_points_per_metric
+        # Convert to 0-10 scale
+        risk_score = (risk_points / max_possible_points) * 10
 
-    # Set minimum metrics threshold to have confidence in assessment
+    # Adjust for limited data
     if metrics_used < 2:
         # With limited data, err on the side of caution
-        return "Medium" if avg_risk < 1.5 else "High"
+        risk_score = max(risk_score, 4.0)  # Minimum score of 4 with limited data
 
-    # Determine risk level based on average risk score
-    if avg_risk < 0.8:
-        return "Low"
-    elif avg_risk < 1.8:
-        return "Medium"
-    else:
-        return "High"
+    risk_score = round(risk_score, 2)
+
+    # Determine risk level based on the 0-10 risk score
+    return risk_score
+
+
+def calculate_shallow_risk_score(
+        market_cap: float = None,
+        high: float = None,
+        low: float = None,
+        pe_ratio: float = None,
+        eps: float = None,
+        debt_to_equity: float = None,
+        beta: float = None
+) -> float:
+    """
+    Calculate a risk score for a stock on a scale of 0-10, where 10 represents the highest risk.
+    All parameters are optional and the function handles missing data gracefully.
+
+    Args:
+        market_cap (float, optional): Market capitalization in dollars
+        high (float, optional): 52-week high price
+        low (float, optional): 52-week low price
+        pe_ratio (float, optional): Price to earnings ratio (forward or trailing)
+        eps (float, optional): Earnings per share (trailing or forward)
+        debt_to_equity (float, optional): Debt to equity ratio
+        beta (float, optional): Stock's beta (volatility relative to market)
+
+    Returns:
+        float: Risk score between 0 and 10, with 10 being highest risk
+    """
+    # Initialize risk points system
+    risk_points = 0
+    metrics_used = 0
+    max_points_per_metric = 3  # Maximum points per metric to keep scoring balanced
+
+    # --- Market Cap (size risk) ---
+    if market_cap is not None:
+        metrics_used += 1
+        if market_cap < 1e9:  # Small cap (below $1B)
+            risk_points += 3
+        elif market_cap < 10e9:  # Mid cap ($1B-$10B)
+            risk_points += 1
+        # Else large cap, no additional risk points
+
+    # --- Volatility risk ---
+    if high is not None and low is not None and low > 0:
+        metrics_used += 1
+        # Calculate volatility as percentage between high and low
+        volatility = ((high - low) / low) * 100
+        if volatility > 70:
+            risk_points += 3
+        elif volatility > 40:
+            risk_points += 2
+        elif volatility > 20:
+            risk_points += 1
+
+    # --- PE ratio (valuation risk) ---
+    if pe_ratio is not None:
+        metrics_used += 1
+        if pe_ratio < 0:  # Negative earnings
+            risk_points += 3
+        elif pe_ratio > 50:  # Very high PE
+            risk_points += 2
+        elif pe_ratio > 30:  # High PE
+            risk_points += 1
+
+    # --- EPS (earnings risk) ---
+    if eps is not None:
+        metrics_used += 1
+        if eps < 0:  # Negative earnings
+            risk_points += 3
+        elif eps < 1 and market_cap and market_cap > 1e9:  # Low earnings for larger companies
+            risk_points += 2
+
+    # --- Debt (if available) ---
+    if debt_to_equity is not None:
+        metrics_used += 1
+        if debt_to_equity > 200:  # Very high debt
+            risk_points += 3
+        elif debt_to_equity > 100:  # High debt
+            risk_points += 2
+        elif debt_to_equity > 50:  # Moderate debt
+            risk_points += 1
+
+    # --- Beta (market correlation risk) ---
+    if beta is not None:
+        metrics_used += 1
+        if abs(beta) > 2:  # Very volatile compared to market
+            risk_points += 2
+        elif abs(beta) > 1.5:  # More volatile than market
+            risk_points += 1
+
+    # Calculate normalized risk score (0-10)
+    if metrics_used == 0:
+        # No metrics available, return a middle-range risk score
+        return 5.0
+
+    # Maximum possible points is metrics_used * max_points_per_metric
+    max_possible_points = metrics_used * max_points_per_metric
+
+    # Convert to 0-10 scale
+    risk_score = (risk_points / max_possible_points) * 10
+
+    # Ensure minimum threshold for confidence
+    if metrics_used < 2:
+        # With limited data, adjust score to be more cautious (shift towards middle-high)
+        risk_score = max(risk_score, 4.0)  # Minimum score of 4 with limited data
+
+    return round(risk_score, 2)  # Round to two decimal places

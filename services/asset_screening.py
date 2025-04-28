@@ -59,7 +59,7 @@ def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_
     if minimal:
         # Calculate risk for each quote
         for q in quotes:
-            q["riskLevel"] = calculate_shallow_risk(q)
+            q["risk_score"] = calculate_shallow_risk(q)
 
         # Get all symbols from the quotes
         symbols = [q["symbol"] for q in quotes]
@@ -84,7 +84,7 @@ def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_
                     "priceChangePercent": q.get("regularMarketChangePercent"),
                     "exchange": q.get("exchange"),
                     "market": q.get("market"),
-                    "riskLevel": q.get("riskLevel"),
+                    "risk_score": q.get("risk_score"),
                     "in_db": q.get("symbol") in db_symbols,  # O(1) lookup in a set
                 }
                 for q in quotes

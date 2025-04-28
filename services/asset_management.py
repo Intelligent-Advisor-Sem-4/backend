@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from classes.Asset import Asset, DB_Stock, AssetFastInfo
 from models.models import Stock, AssetStatus
 from services.risk_analysis.analyser import RiskAnalysis
+from services.utils import calculate_shallow_risk_score
 
 
 def create_stock(db: Session, symbol: str) -> Stock:
@@ -73,7 +74,6 @@ def delete_stock(db: Session, stock_id: int) -> None:
 def get_asset_by_ticker(s: Session, t: str) -> Asset:
     """Fetch the asset by ticker symbol"""
     try:
-        risk_analyser = RiskAnalysis(ticker=t, db=s)
         yt = yf.Ticker(t)
         basic_info = yt.fast_info
         if not basic_info:
@@ -83,12 +83,12 @@ def get_asset_by_ticker(s: Session, t: str) -> Asset:
         info = yt.info
         db_stock = s.query(Stock).filter(Stock.ticker_symbol == t).first()
 
-        # Get risks scores
-        risks = risk_analyser.fast_get_risk_report()
-
         # Create DB_Stock object if we have one in database
         db_stock_model = None
         if db_stock:
+            # Get risks scores
+            risk_analyser = RiskAnalysis(ticker=t, db=s)
+            risks = risk_analyser.fast_get_risk_report()
             db_stock_model = DB_Stock(
                 in_db=True,
                 status=db_stock.status,
@@ -97,9 +97,18 @@ def get_asset_by_ticker(s: Session, t: str) -> Asset:
                 risk_score_updated=db_stock.risk_score_updated.isoformat() if db_stock.risk_score_updated else None
             )
         else:
+            riskScore = calculate_shallow_risk_score(
+                market_cap=info.get("marketCap"),
+                high=info.get("fiftyTwoWeekHigh"),
+                low=info.get("fiftyTwoWeekLow"),
+                pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
+                eps=info.get("trailingEps"),
+                debt_to_equity=info.get("debtToEquity"),
+                beta=info.get("beta"),
+            )
             db_stock_model = DB_Stock(
                 in_db=False,
-                risk_score=risks.get("risk_score"),
+                risk_score=riskScore,
             )
 
         return Asset(
@@ -161,7 +170,7 @@ if __name__ == "__main__":
     db = get_db()
     session = next(db)
     try:
-        ticker = get_asset_by_ticker_fast(session, "AAPL")
+        ticker = get_asset_by_ticker(session, "AEXAF")
         print(ticker)
     finally:
         db.close()
