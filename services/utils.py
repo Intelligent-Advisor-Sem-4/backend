@@ -178,10 +178,11 @@ default_sentiment = SentimentAnalysisResponse(
 )
 
 
-def get_stock_by_ticker(db: Session, ticker: str) -> Stock:
+def get_stock_by_ticker(db: Session, ticker: str) -> Stock | None:
     stock = db.query(Stock).filter_by(ticker_symbol=ticker).first()
     if not stock:
-        raise ValueError(f"Stock with symbol '{ticker}' not found in database")
+        print(f"Stock with symbol '{ticker}' not found in database")
+        return None
     return stock
 
 

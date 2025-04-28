@@ -3,12 +3,13 @@ from typing import List, Union, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends, status
 from sqlalchemy.orm import Session
 
+from classes.Asset import Asset, AssetFastInfo
 from classes.Stock import StockResponse
 from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
 from core.middleware import logger
 from db.dbConnect import get_db
 from services.asset_screening import run_stock_screen
-from services.asset_management import create_stock
+from services.asset_management import create_stock, get_asset_by_ticker, get_asset_by_ticker_fast
 from classes.Search import SearchResult
 from services.asset_search import yfinance_search
 
@@ -145,3 +146,75 @@ async def search(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred: {str(e)}"
         )
+
+
+@router.get("/{ticker}", response_model=Asset)
+async def get_asset(ticker: str, db: Session = Depends(get_db)):
+    """
+    Get asset details by ticker symbol.
+
+    Args:
+        ticker: The stock ticker symbol
+        db: Database session
+
+    Returns:
+        The asset object
+
+    Raises:
+        HTTPException: If asset not found or error occurs
+    """
+    try:
+        asset = get_asset_by_ticker(db, ticker)
+        return asset
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/{ticker}", response_model=Asset)
+async def get_asset(ticker: str, db: Session = Depends(get_db)):
+    """
+    Get asset details by ticker symbol.
+
+    Args:
+        ticker: The stock ticker symbol
+        db: Database session
+
+    Returns:
+        The asset object
+
+    Raises:
+        HTTPException: If asset not found or error occurs
+    """
+    try:
+        asset = get_asset_by_ticker(db, ticker)
+        return asset
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/fast-info/{ticker}", response_model=AssetFastInfo)
+async def get_asset(ticker: str, db: Session = Depends(get_db)):
+    """
+    Get asset details by ticker symbol.
+
+    Args:
+        ticker: The stock ticker symbol
+        db: Database session
+
+    Returns:
+        The asset object
+
+    Raises:
+        HTTPException: If asset not found or error occurs
+    """
+    try:
+        asset = get_asset_by_ticker_fast(db, ticker)
+        return asset
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

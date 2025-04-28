@@ -73,6 +73,9 @@ class NewsSentimentService:
             print('No articles found for sentiment analysis')
             sentiment_data = default_sentiment_data
         elif not use_gemini:
+            if self.stock is None:
+                print('No stock in database and Gemini disabled')
+                return None
             # If Gemini is disabled, check if we have data in the database first
             existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
             if existing_analysis:
@@ -120,6 +123,9 @@ class NewsSentimentService:
             # Parse the data through the Pydantic model for validation
             sentiment_model = SentimentAnalysisResponse(**sentiment_data)
 
+            if not self.stock:
+                print("No stock in database to store")
+                return sentiment_model
             try:
                 # Check if an analysis already exists for this stock
                 existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
@@ -171,6 +177,9 @@ class NewsSentimentService:
     def _store_fallback_sentiment(self, fallback_model: SentimentAnalysisResponse) -> None:
         """Store fallback sentiment in the database"""
         print("Something has gone wrong storing fallback sentiment")
+        if not self.stock:
+            print("No stock in database to store")
+            return None
         try:
             existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -223,8 +232,9 @@ class NewsSentimentService:
     def _create_sentiment_prompt(self, news_text: str) -> str:
         """Create the prompt for Gemini"""
         print('Creating sentiment analysis prompt for Gemini')
+        asset_name = self.stock.asset_name if self.stock else self.ticker
         return f"""
-        As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
+        As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
 
         {news_text}
 
@@ -256,6 +266,11 @@ class NewsSentimentService:
         """Fetch news sentiment for the stock"""
         print("Getting news sentiment")
 
+        # Return early if stock is None and we're not using Gemini
+        if self.stock is None and not use_gemini:
+            print("No stock in database and Gemini disabled, returning None")
+            return None
+
         # If Gemini is disabled, check if we have existing sentiment data
         if not use_gemini:
             print("Gemini disabled, checking database only")
@@ -266,10 +281,10 @@ class NewsSentimentService:
                     return SentimentAnalysisResponse(**news_sentiment_not_gemini.response_json)
                 except ValidationError:
                     print("Invalid sentiment data in database")
-            return None  # Return None if no valid database entry exists
+            return None
 
         # Normal processing with Gemini enabled
-        if prefer_newest:
+        if prefer_newest or self.stock is None:
             print("Generating brand new sentiment")
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles, use_gemini=use_gemini)

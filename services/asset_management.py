@@ -3,7 +3,9 @@ import sys
 import yfinance as yf
 from sqlalchemy.orm import Session
 
+from classes.Asset import Asset, DB_Stock, AssetFastInfo
 from models.models import Stock, AssetStatus
+from services.risk_analysis.analyser import RiskAnalysis
 
 
 def create_stock(db: Session, symbol: str) -> Stock:
@@ -68,13 +70,98 @@ def delete_stock(db: Session, stock_id: int) -> None:
     db.commit()
 
 
+def get_asset_by_ticker(s: Session, t: str) -> Asset:
+    """Fetch the asset by ticker symbol"""
+    try:
+        risk_analyser = RiskAnalysis(ticker=t, db=s)
+        yt = yf.Ticker(t)
+        basic_info = yt.fast_info
+        if not basic_info:
+            raise ValueError(f"No data found for ticker {t}.")
+
+        history_metadata = yt.history_metadata
+        info = yt.info
+        db_stock = s.query(Stock).filter(Stock.ticker_symbol == t).first()
+
+        # Get risks scores
+        risks = risk_analyser.fast_get_risk_report()
+
+        # Create DB_Stock object if we have one in database
+        db_stock_model = None
+        if db_stock:
+            db_stock_model = DB_Stock(
+                in_db=True,
+                status=db_stock.status,
+                asset_id=db_stock.stock_id,
+                risk_score=risks.get("risk_score") or db_stock.risk_score,
+                risk_score_updated=db_stock.risk_score_updated.isoformat() if db_stock.risk_score_updated else None
+            )
+        else:
+            db_stock_model = DB_Stock(
+                in_db=False,
+                risk_score=risks.get("risk_score"),
+            )
+
+        return Asset(
+            name=history_metadata.get('shortName') or history_metadata.get('longName') or basic_info.get(
+                'shortName') or basic_info.get('longName') or t,
+            company_url=info.get('website', ''),
+            exchange=history_metadata.get('exchangeName') or basic_info.exchange,
+            ticker=t,
+            type=basic_info.quote_type,
+            sector=info.get('sector', ''),
+            industry=info.get('industry', ''),
+            currency=basic_info.currency,
+            prev_close=info.get('previousClose'),
+            open_price=info.get('open'),
+            last_price=info.get('currentPrice'),
+            day_high=info.get('dayHigh'),
+            day_low=info.get('dayLow'),
+            volume=basic_info.last_volume,
+            avg_volume=info.get('averageVolume'),
+            beta=info.get('beta'),
+            market_cap=info.get('marketCap'),
+            fifty_two_week_high=info.get('fiftyTwoWeekHigh'),
+            fifty_two_week_low=info.get('fiftyTwoWeekLow'),
+            bid=info.get('bid'),
+            ask=info.get('ask'),
+            trailing_eps=info.get('trailingEps'),
+            trailing_pe=info.get('trailingPE'),
+            db=db_stock_model
+        )
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        raise ValueError(f"Error retrieving data for ticker {t}: {str(e)}")
+
+
+def get_asset_by_ticker_fast(s: Session, t: str) -> AssetFastInfo:
+    """Fetch the asset by ticker symbol"""
+    try:
+        yt = yf.Ticker(t)
+        basic_info = yt.fast_info
+        if not basic_info:
+            raise ValueError(f"No data found for ticker {t}.")
+
+        return AssetFastInfo(
+            currency=basic_info.currency,
+            prev_close=basic_info.previous_close,
+            last_price=basic_info.last_price,
+        )
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        raise ValueError(f"Error retrieving data for ticker {t}: {str(e)}")
+
+
 if __name__ == "__main__":
     # Example usage
     from db.dbConnect import get_db
 
     db = get_db()
+    session = next(db)
     try:
-        ticker = yf.Ticker("AAPL")
-        print(ticker.info["longName"])
+        ticker = get_asset_by_ticker_fast(session, "AAPL")
+        print(ticker)
     finally:
         db.close()

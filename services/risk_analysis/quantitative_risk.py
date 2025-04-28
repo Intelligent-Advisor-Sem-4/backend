@@ -110,6 +110,11 @@ class QuantitativeRiskService:
     def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity, eps=None) -> None:
         """Store or update quantitative risk analysis in the database"""
         print("Storing quantitative analysis record")
+        # Return early if stock is None
+        if self.stock is None:
+            print("No stock in database to store")
+            return None
+
         try:
             existing_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -122,8 +127,6 @@ class QuantitativeRiskService:
                 existing_analysis.volume_change = volume_change
                 existing_analysis.debt_to_equity = debt_to_equity
                 existing_analysis.updated_at = datetime.utcnow()
-
-
             else:
                 # Create new record
                 print("Creating new report")
@@ -271,6 +274,12 @@ class QuantitativeRiskService:
     def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
         print("Get quantitative metrics")
+
+        # If stock is None, always calculate new metrics
+        if self.stock is None:
+            print("No stock in database, calculating new metrics")
+            return self.calculate_quantitative_metrics(lookback_days, use_gemini)
+
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
         if quantitative_analysis and quantitative_analysis.created_at > datetime.utcnow() - timedelta(days=2):

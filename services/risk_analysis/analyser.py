@@ -6,11 +6,11 @@ import yfinance as yf
 from google import genai
 from sqlalchemy.orm import Session
 
-from anomalies import AnomalyDetectionService
 from db.dbConnect import get_db
-from esg_risk import ESGDataService
-from news_sentiment import NewsSentimentService
-from quantitative_risk import QuantitativeRiskService
+from services.risk_analysis.esg_risk import ESGDataService
+from services.risk_analysis.news_sentiment import NewsSentimentService
+from services.risk_analysis.quantitative_risk import QuantitativeRiskService
+from services.risk_analysis.anomalies import AnomalyDetectionService
 from services.utils import get_stock_by_ticker
 
 # Configure Gemini API
@@ -31,9 +31,7 @@ class RiskAnalysis:
         if not basic_info:
             raise ValueError(f"No data found for ticker {ticker}.")
         self.stock = get_stock_by_ticker(db, ticker)
-
         self.ticker_data = ticker_data
-
         self.news_service = NewsSentimentService(self.gemini_client, self.db, self.ticker, self.ticker_data)
         self.quant_service = QuantitativeRiskService(self.gemini_client, self.db, self.ticker, self.ticker_data)
         self.anomaly_service = AnomalyDetectionService(self.ticker, self.ticker_data)
@@ -87,9 +85,10 @@ class RiskAnalysis:
         overall_score = round(weighted_score, 2)
 
         # Update the stock's risk score in the database
-        self.stock.risk_score = overall_score
-        self.stock.risk_score_updated = datetime.now()
-        self.db.commit()
+        if self.stock:
+            self.stock.risk_score = overall_score
+            self.stock.risk_score_updated = datetime.now()
+            self.db.commit()
 
         return {
             "overall_risk_score": overall_score,
@@ -117,7 +116,7 @@ class RiskAnalysis:
         # Compile final report
         final_risk_report = {
             "symbol": self.ticker,
-            "company_name": self.stock.asset_name,
+            "company_name": self.stock.asset_name if self.stock else None,
             "analysis_date": datetime.now().isoformat(),
             "overall_risk": overall_risk,
             "components": {
@@ -134,7 +133,7 @@ class RiskAnalysis:
         """Generate a fast risk score"""
 
         # If risk score present and not older than one day
-        if self.stock.risk_score is not None and self.stock.risk_score_updated and datetime.now() - self.stock.risk_score_updated < timedelta(
+        if self.stock is not None and self.stock.risk_score is not None and self.stock.risk_score_updated and datetime.now() - self.stock.risk_score_updated < timedelta(
                 days=1):
             return {
                 "symbol": self.ticker,
