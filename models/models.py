@@ -65,6 +65,7 @@ class Stock(Base):
     first_data_point_date = Column(Date, nullable=True)
     last_data_point_date = Column(Date, nullable=True)
     risk_score = Column(Numeric(10, 2), nullable=True)
+    risk_score_updated = Column(DateTime, nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

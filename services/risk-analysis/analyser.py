@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 import yfinance as yf
@@ -84,8 +84,15 @@ class RiskAnalysis:
         elif weighted_score >= 4:
             risk_level = "Medium"
 
+        overall_score = round(weighted_score, 2)
+
+        # Update the stock's risk score in the database
+        self.stock.risk_score = overall_score
+        self.stock.risk_score_updated = datetime.now()
+        self.db.commit()
+
         return {
-            "overall_risk_score": round(weighted_score, 2),
+            "overall_risk_score": overall_score,
             "risk_level": risk_level,
             "components": components
         }
@@ -122,6 +129,110 @@ class RiskAnalysis:
         }
 
         return final_risk_report
+
+    def fast_get_risk_report(self, lookback_days: int = 30) -> Dict[str, Any]:
+        """Generate a fast risk score"""
+
+        # If risk score present and not older than one day
+        if self.stock.risk_score is not None and self.stock.risk_score_updated and datetime.now() - self.stock.risk_score_updated < timedelta(
+                days=1):
+            return {
+                "symbol": self.ticker,
+                "risk_score": self.stock.risk_score,
+            }
+        else:
+            # Calculate risk score
+            self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(prefer_newest=False,
+                                                                                          use_gemini=False)
+            self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(lookback_days,
+                                                                                               use_gemini=False)
+            self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
+            self.risk_components["esg"] = self.esg_service.get_esg_data()
+            overall_risk = self.calculate_overall_risk()
+
+            return {
+                "symbol": self.ticker,
+                "risk_score": overall_risk["overall_risk_score"],
+            }
+
+    def get_news_sentiment_risk(self, prefer_newest: bool = False, use_gemini: bool = True) -> Dict[str, Any]:
+        """
+        Get news sentiment risk component
+
+        Args:
+            prefer_newest: Whether to prioritize the newest news articles
+            use_gemini: Whether to use Gemini for sentiment analysis
+
+        Returns:
+            News sentiment analysis results
+        """
+        if "news_sentiment" not in self.risk_components:
+            self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(
+                prefer_newest=prefer_newest,
+                use_gemini=use_gemini
+            )
+        return self.risk_components["news_sentiment"]
+
+    def get_quantitative_risk(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+        """
+        Get quantitative risk metrics
+
+        Args:
+            lookback_days: Number of days to look back for historical data
+            use_gemini: Whether to use Gemini for quantitative analysis
+
+        Returns:
+            Quantitative risk metrics
+        """
+        if "quantitative" not in self.risk_components:
+            self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(
+                lookback_days=lookback_days,
+                use_gemini=use_gemini
+            )
+        return self.risk_components["quantitative"]
+
+    def get_anomaly_risk(self, lookback_days: int = 30) -> Dict[str, Any]:
+        """
+        Get anomaly detection risk component
+
+        Args:
+            lookback_days: Number of days to look back for anomaly detection
+
+        Returns:
+            Anomaly detection results
+        """
+        if "anomalies" not in self.risk_components:
+            self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
+        return self.risk_components["anomalies"]
+
+    def get_esg_risk(self) -> Dict[str, Any]:
+        """
+        Get ESG risk component
+
+        Returns:
+            ESG risk data
+        """
+        if "esg" not in self.risk_components:
+            self.risk_components["esg"] = self.esg_service.get_esg_data()
+        return self.risk_components["esg"]
+
+    def get_all_risk_components(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+        """
+        Get all risk components at once
+
+        Args:
+            lookback_days: Number of days to look back for historical data
+            use_gemini: Whether to use Gemini for analysis
+
+        Returns:
+            Dictionary containing all risk components
+        """
+        return {
+            "news_sentiment": self.get_news_sentiment_risk(use_gemini=use_gemini),
+            "quantitative": self.get_quantitative_risk(lookback_days=lookback_days, use_gemini=use_gemini),
+            "anomalies": self.get_anomaly_risk(lookback_days=lookback_days),
+            "esg": self.get_esg_risk()
+        }
 
 
 if __name__ == "__main__":
