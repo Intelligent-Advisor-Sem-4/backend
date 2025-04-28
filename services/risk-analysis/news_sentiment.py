@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -45,8 +45,9 @@ class NewsSentimentService:
         articles = self.ticker_data.get_news(count=limit)
         return [parse_news_article(article) for article in articles]
 
-    def generate_news_sentiment(self, articles: List[NewsArticle]) -> SentimentAnalysisResponse:
-        """Use Gemini to analyze news sentiment and store results in database"""
+    def generate_news_sentiment(self, articles: List[NewsArticle], use_gemini: bool = True) -> Optional[
+        SentimentAnalysisResponse]:
+        """Use Gemini to analyze news sentiment and store results in database if you use_gemini is True"""
         print('Generating news sentiment analysis')
         # Default sentiment for no articles or error cases
         default_sentiment_data = {
@@ -71,6 +72,15 @@ class NewsSentimentService:
         if not articles:
             print('No articles found for sentiment analysis')
             sentiment_data = default_sentiment_data
+        elif not use_gemini:
+            # If Gemini is disabled, check if we have data in the database first
+            existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            if existing_analysis:
+                try:
+                    return SentimentAnalysisResponse(**existing_analysis.response_json)
+                except ValidationError:
+                    pass  # If validation fails, continue to return None
+            return None  # Return None if Gemini is disabled and no valid database entry exists
         else:
             sentiment_response = None
             try:
@@ -81,7 +91,7 @@ class NewsSentimentService:
                 print('Generating sentiment analysis with Gemini')
                 sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
                                                                                 contents=prompt)
-                sentiment_data = _parse_gemini_response(sentiment_response)
+                sentiment_data = parse_gemini_response(sentiment_response)
 
             except Exception as e:
                 print(f"[Gemini Analysis Error] Exception: {e}")
@@ -197,15 +207,15 @@ class NewsSentimentService:
         news_text = f"Recent news articles about {self.ticker}:\n\n"
 
         for i, article in enumerate(articles, 1):
-            news_text += f"{i}. Title: {article['title']}\n"
-            news_text += f"   Date: {article['publish_date']}\n"
-            news_text += f"   Source: {article['provider_name']}\n"
-            news_text += f"   Summary: {article['summary']}\n\n"
+            news_text += f"{i}. Title: {article.title}\n"
+            news_text += f"   Date: {article.publish_date}\n"
+            news_text += f"   Source: {article.provider_name}\n"
+            news_text += f"   Summary: {article.summary}\n\n"
 
-            if article.get('related_articles'):
+            if article.related_articles:
                 news_text += "   Related articles:\n"
-                for related in article['related_articles']:
-                    news_text += f"   - {related['title']} ({related['provider_name']})\n"
+                for related in article.related_articles:
+                    news_text += f"   - {related.title} ({related.title})\n"
                 news_text += "\n"
 
         return news_text
@@ -241,13 +251,28 @@ class NewsSentimentService:
         Ensure output is valid JSON and optimized for downstream explainability modules.
         """
 
-    def get_news_sentiment(self, prefer_newest: bool = True) -> SentimentAnalysisResponse:
+    def get_news_sentiment(self, prefer_newest: bool = True, use_gemini: bool = True) -> Optional[
+        SentimentAnalysisResponse]:
         """Fetch news sentiment for the stock"""
         print("Getting news sentiment")
+
+        # If Gemini is disabled, check if we have existing sentiment data
+        if not use_gemini:
+            print("Gemini disabled, checking database only")
+            news_sentiment_not_gemini = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            if news_sentiment_not_gemini:
+                try:
+                    print("Returning existing sentiment report")
+                    return SentimentAnalysisResponse(**news_sentiment_not_gemini.response_json)
+                except ValidationError:
+                    print("Invalid sentiment data in database")
+            return None  # Return None if no valid database entry exists
+
+        # Normal processing with Gemini enabled
         if prefer_newest:
             print("Generating brand new sentiment")
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)
 
         # Check if sentiment already exists in the database
         print("Checking existing sentiment")
@@ -257,13 +282,12 @@ class NewsSentimentService:
         if not news_sentiment or news_sentiment.created_at < datetime.utcnow() - timedelta(hours=6):
             print("No sentiment found or found older sentiment")
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)
 
-        # Otherwise, construct a SentimentAnalysisResponse from the database record
         try:
             print("Returning existing sentiment report")
             return SentimentAnalysisResponse(**news_sentiment.response_json)
         except ValidationError:
             # If the stored JSON is invalid, generate a new sentiment
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)

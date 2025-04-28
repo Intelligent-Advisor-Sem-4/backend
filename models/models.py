@@ -179,9 +179,6 @@ class NewsRiskAnalysis(Base):
 
     stock = relationship("Stock", back_populates="news_risk_analysis")
 
-    def __repr__(self):
-        return f"<NewsRiskAnalysis(news_id='{self.news_id}', stability_label='{self.stability_label}')>"
-
 
 class QuantitativeRiskAnalysis(Base):
     __tablename__ = "quantitative_risk_analysis"

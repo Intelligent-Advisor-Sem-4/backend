@@ -73,14 +73,11 @@ class RiskAnalysis:
 
     def generate_risk_report(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
-        # Store news articles in the database
-        self.news_service.store_news_for_ticker()
-
         # Analyze news sentiment
         self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(prefer_newest=False)
 
         # Calculate quantitative metrics
-        self.risk_components["quantitative"] = self.quant_service.calculate_quantitative_metrics(lookback_days)
+        self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(lookback_days)
 
         # Detect anomalies
         self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
@@ -113,7 +110,7 @@ if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
     try:
-        analyzer = RiskAnalysis("AAPL", session)
+        analyzer = RiskAnalysis("NVDA", session)
         report = analyzer.generate_risk_report(lookback_days=30)
         print(report)
     except Exception as e:
