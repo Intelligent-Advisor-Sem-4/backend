@@ -42,17 +42,36 @@ class RiskAnalysis:
     def calculate_overall_risk(self) -> Dict[str, Any]:
         """Calculate overall risk score from all components"""
         print("Calculating overall risk")
-        # Get all risk components with assigned weights
+
+        # Get news sentiment risk with a default value of 5
         news_sentiment_risk = getattr(self.risk_components.get("news_sentiment", {}), "risk_score", 5)
 
+        # Safely get quantitative risk score
+        quant_component = self.risk_components.get("quantitative", {})
+        quant_risk_score = 5  # Default value
+
+        # Handle the case where quant_component could be None or a dictionary
+        if quant_component is not None and isinstance(quant_component, dict):
+            risk_metrics = quant_component.get("risk_metrics", {})
+            if isinstance(risk_metrics, dict):
+                quant_risk_score = risk_metrics.get("quant_risk_score", 5)
+
+        # Similar safety for anomalies and ESG
+        anomaly_component = self.risk_components.get("anomalies", {})
+        anomaly_score = 0  # Default value
+        if anomaly_component is not None and isinstance(anomaly_component, dict):
+            anomaly_score = anomaly_component.get("anomaly_score", 0)
+
+        esg_component = self.risk_components.get("esg", {})
+        esg_risk_score = 5  # Default value
+        if esg_component is not None and isinstance(esg_component, dict):
+            esg_risk_score = esg_component.get("esg_risk_score", 5)
+
         components = {
-            "news_sentiment": {"weight": 0.30,
-                               "score": news_sentiment_risk},
-            "quantitative": {"weight": 0.35,
-                             "score": self.risk_components.get("quantitative", {}).get("risk_metrics", {}).get(
-                                 "quant_risk_score", 5)},
-            "anomalies": {"weight": 0.20, "score": self.risk_components.get("anomalies", {}).get("anomaly_score", 0)},
-            "esg": {"weight": 0.15, "score": self.risk_components.get("esg", {}).get("esg_risk_score", 5)}
+            "news_sentiment": {"weight": 0.30, "score": news_sentiment_risk},
+            "quantitative": {"weight": 0.35, "score": quant_risk_score},
+            "anomalies": {"weight": 0.20, "score": anomaly_score},
+            "esg": {"weight": 0.15, "score": esg_risk_score}
         }
 
         # Calculate weighted risk score
