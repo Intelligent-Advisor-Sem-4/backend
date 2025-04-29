@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict
 
 import numpy as np
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from yfinance import Ticker
 
 from models.models import QuantitativeRiskAnalysis
 from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_gemini_json_response
+from classes.Risk_Components import QuantRiskResponse, QuantRiskMetrics
 
 
 class QuantitativeRiskService:
@@ -148,7 +149,7 @@ class QuantitativeRiskService:
             self.db.rollback()
             print(f"[Database Error] Failed to store quantitative risk analysis: {e}")
 
-    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """Calculate key quantitative risk metrics"""
         print('Calculating quantitative metrics')
         end_date = datetime.now()
@@ -250,28 +251,40 @@ class QuantitativeRiskService:
                 use_gemini=use_gemini
             )
 
-            # Return the complete results
-            return {
-                "volatility": volatility,
-                "beta": beta,
-                "rsi": rsi,
-                "volume_change_percent": volume_change,
-                "debt_to_equity": debt_to_equity,
-                "risk_metrics": risk_scores,
-                "risk_label": risk_analysis["risk_label"],
-                "risk_explanation": risk_analysis["explanation"]
-            }
+            # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
+            risk_metrics = QuantRiskMetrics(
+                volatility_score=risk_scores.get("volatility_score"),
+                beta_score=risk_scores.get("beta_score"),
+                rsi_risk=risk_scores.get("rsi_risk"),
+                volume_risk=risk_scores.get("volume_risk"),
+                debt_risk=risk_scores.get("debt_risk"),
+                eps_risk=risk_scores.get("eps_risk"),
+                quant_risk_score=risk_scores.get("quant_risk_score")
+            )
+
+            # Return the complete results as a Pydantic model
+            return QuantRiskResponse(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change_percent=volume_change,
+                debt_to_equity=debt_to_equity,
+                risk_metrics=risk_metrics,
+                risk_label=risk_analysis["risk_label"],
+                risk_explanation=risk_analysis["explanation"]
+            )
         except Exception as e:
             print(f"Error calculating quantitative metrics: {e}")
-            return {
-                "error": str(e),
-                "risk_metrics": {
-                    "quant_risk_score": 5  # Neutral score on error
-                },
-                "risk_explanation": "Unable to calculate risk metrics due to an error."
-            }
+            # Return error response as a Pydantic model
+            return QuantRiskResponse(
+                error=str(e),
+                risk_metrics=QuantRiskMetrics(
+                    quant_risk_score=5  # Neutral score on error
+                ),
+                risk_explanation="Unable to calculate risk metrics due to an error."
+            )
 
-    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
         print("Get quantitative metrics")
 
@@ -305,16 +318,28 @@ class QuantitativeRiskService:
                 use_gemini=use_gemini
             )
 
-            return {
-                "volatility": quantitative_analysis.volatility,
-                "beta": quantitative_analysis.beta,
-                "rsi": quantitative_analysis.rsi,
-                "volume_change_percent": quantitative_analysis.volume_change,
-                "debt_to_equity": quantitative_analysis.debt_to_equity,
-                "risk_metrics": risk_scores,
-                "risk_label": risk_analysis["risk_label"],
-                "risk_explanation": risk_analysis["explanation"]
-            }
+            # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
+            risk_metrics = QuantRiskMetrics(
+                volatility_score=risk_scores.get("volatility_score"),
+                beta_score=risk_scores.get("beta_score"),
+                rsi_risk=risk_scores.get("rsi_risk"),
+                volume_risk=risk_scores.get("volume_risk"),
+                debt_risk=risk_scores.get("debt_risk"),
+                eps_risk=risk_scores.get("eps_risk"),
+                quant_risk_score=risk_scores.get("quant_risk_score")
+            )
+
+            # Return the results as a Pydantic model
+            return QuantRiskResponse(
+                volatility=quantitative_analysis.volatility,
+                beta=quantitative_analysis.beta,
+                rsi=quantitative_analysis.rsi,
+                volume_change_percent=quantitative_analysis.volume_change,
+                debt_to_equity=quantitative_analysis.debt_to_equity,
+                risk_metrics=risk_metrics,
+                risk_label=risk_analysis["risk_label"],
+                risk_explanation=risk_analysis["explanation"]
+            )
 
         # If no recent analysis exists, calculate new metrics
         print("No recent analysis found, calculating new metrics")
