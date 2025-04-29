@@ -84,28 +84,25 @@ def get_asset_by_ticker(s: Session, t: str) -> Asset:
         db_stock = s.query(Stock).filter(Stock.ticker_symbol == t).first()
 
         # Create DB_Stock object if we have one in database
+        riskScore = calculate_shallow_risk_score(
+            market_cap=info.get("marketCap"),
+            high=info.get("fiftyTwoWeekHigh"),
+            low=info.get("fiftyTwoWeekLow"),
+            pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
+            eps=info.get("trailingEps"),
+            debt_to_equity=info.get("debtToEquity"),
+            beta=info.get("beta"),
+        )
         db_stock_model = None
         if db_stock:
-            # Get risks scores
-            risk_analyser = RiskAnalysis(ticker=t, db=s)
-            risks = risk_analyser.fast_get_risk_report()
             db_stock_model = DB_Stock(
                 in_db=True,
                 status=db_stock.status,
                 asset_id=db_stock.stock_id,
-                risk_score=risks.get("risk_score") or db_stock.risk_score,
+                risk_score=riskScore,
                 risk_score_updated=db_stock.risk_score_updated.isoformat() if db_stock.risk_score_updated else None
             )
         else:
-            riskScore = calculate_shallow_risk_score(
-                market_cap=info.get("marketCap"),
-                high=info.get("fiftyTwoWeekHigh"),
-                low=info.get("fiftyTwoWeekLow"),
-                pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
-                eps=info.get("trailingEps"),
-                debt_to_equity=info.get("debtToEquity"),
-                beta=info.get("beta"),
-            )
             db_stock_model = DB_Stock(
                 in_db=False,
                 risk_score=riskScore,

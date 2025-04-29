@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 import yfinance as yf
 from google import genai
@@ -12,6 +12,7 @@ from services.risk_analysis.news_sentiment import NewsSentimentService
 from services.risk_analysis.quantitative_risk import QuantitativeRiskService
 from services.risk_analysis.anomalies import AnomalyDetectionService
 from services.utils import get_stock_by_ticker
+from classes.News import NewsArticle
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -153,6 +154,14 @@ class RiskAnalysis:
                 "symbol": self.ticker,
                 "risk_score": overall_risk["overall_risk_score"],
             }
+
+    def get_news(self) -> List[NewsArticle]:
+        """
+        Get news articles related to the stock
+        Returns:
+            News articles
+        """
+        return self.news_service.get_news_articles(limit=10)
 
     def get_news_sentiment_risk(self, prefer_newest: bool = False, use_gemini: bool = True) -> Dict[str, Any]:
         """
