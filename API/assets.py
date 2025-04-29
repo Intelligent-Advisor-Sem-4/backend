@@ -16,7 +16,7 @@ from services.asset_management import create_stock, get_asset_by_ticker, get_ass
 from classes.Search import SearchResult
 from services.asset_search import yfinance_search
 
-router = APIRouter(prefix='/assets')
+router = APIRouter(prefix='/assets', tags=["asset-management"])
 
 
 @router.get("/screen/{screen_type}", response_model=Union[Dict[str, Any], ScreenerResponseMinimal],
