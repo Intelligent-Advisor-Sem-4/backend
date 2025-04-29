@@ -6,7 +6,6 @@ import asyncio
 from typing import AsyncGenerator
 from fastapi.encoders import jsonable_encoder
 
-
 from db.dbConnect import get_db
 from services.risk_analysis.analyser import RiskAnalysis
 
@@ -14,46 +13,60 @@ router = APIRouter(prefix="/risk-analysis", tags=["risk-analysis"])
 
 
 async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> AsyncGenerator[str, None]:
-    """Generate streaming risk analysis data"""
-    try:
-        analyzer = RiskAnalysis(ticker=ticker, db=db)
+    """Generate streaming risk analysis data with individual error handling for each section"""
+    analyzer = RiskAnalysis(ticker=ticker, db=db)
 
-        # Step 1: Send news articles
+    # Step 1: Send news articles
+    try:
         news_articles = analyzer.get_news()
-        # Convert to JSON-serializable format first
         serializable_articles = jsonable_encoder([article.dict() for article in news_articles])
         yield f"data: {json.dumps({'type': 'news_articles', 'data': serializable_articles})}\n\n"
-        await asyncio.sleep(0.1)  # Small delay between messages
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'news_articles', 'message': str(e)})}\n\n"
+    await asyncio.sleep(0.1)  # Small delay between messages
 
-        # Apply the same pattern to other responses
+    # Step 2: News sentiment
+    try:
         news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False)
         yield f"data: {json.dumps({'type': 'news_sentiment', 'data': jsonable_encoder(news_sentiment)})}\n\n"
-        await asyncio.sleep(0.1)
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'news_sentiment', 'message': str(e)})}\n\n"
+    await asyncio.sleep(0.1)
 
+    # Step 3: Quantitative risk
+    try:
         quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_gemini=False)
         yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': jsonable_encoder(quantitative_risk)})}\n\n"
-        await asyncio.sleep(0.1)
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'quantitative_risk', 'message': str(e)})}\n\n"
+    await asyncio.sleep(0.1)
 
+    # Step 4: ESG risk
+    try:
         esg_risk = analyzer.get_esg_risk()
         yield f"data: {json.dumps({'type': 'esg_risk', 'data': jsonable_encoder(esg_risk)})}\n\n"
-        await asyncio.sleep(0.1)
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'esg_risk', 'message': str(e)})}\n\n"
+    await asyncio.sleep(0.1)
 
+    # Step 5: Anomaly risk
+    try:
         anomaly_risk = analyzer.get_anomaly_risk(lookback_days=lookback_days)
         yield f"data: {json.dumps({'type': 'anomaly_risk', 'data': jsonable_encoder(anomaly_risk)})}\n\n"
-        await asyncio.sleep(0.1)
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'anomaly_risk', 'message': str(e)})}\n\n"
+    await asyncio.sleep(0.1)
 
+    # Step 6: Overall risk
+    try:
         overall_risk = analyzer.calculate_overall_risk()
         yield f"data: {json.dumps({'type': 'overall_risk', 'data': jsonable_encoder(overall_risk)})}\n\n"
-
-        # Signal completion
-        yield f"data: {json.dumps({'type': 'complete'})}\n\n"
-
-    except ValueError as e:
-        error_msg = str(e)
-        yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
-        yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+        yield f"data: {json.dumps({'type': 'section_error', 'section': 'overall_risk', 'message': str(e)})}\n\n"
+
+    # Signal completion
+    yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+
 
 @router.get("/{ticker}/stream")
 async def stream_risk_analysis(
