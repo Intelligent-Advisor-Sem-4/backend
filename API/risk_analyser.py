@@ -30,7 +30,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
         yield f"data: {json.dumps({'type': 'news_sentiment', 'data': jsonable_encoder(news_sentiment)})}\n\n"
         await asyncio.sleep(0.1)
 
-        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days)
+        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_gemini=False)
         yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': jsonable_encoder(quantitative_risk)})}\n\n"
         await asyncio.sleep(0.1)
 
