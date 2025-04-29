@@ -56,7 +56,7 @@ class QuantitativeRiskService:
 
             # Prepare the prompt for Gemini
             prompt = f"""
-            As a financial risk analyst for a platform that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
+           As a financial risk and compliance analyst for a stock screening platform, that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
 
             - Volatility: {volatility:.2f}% (annualized)
             - Beta: {beta_str}

@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from yfinance import Ticker
 
-from classes.Sentiment import SentimentAnalysisResponse
+from classes.Risk_Components import SentimentAnalysisResponse
 from models.models import NewsRiskAnalysis
 from services.utils import parse_news_article, default_sentiment, get_stock_by_ticker, parse_gemini_json_response
 from classes.News import NewsArticle

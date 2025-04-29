@@ -4,7 +4,7 @@ from typing import Any, Dict
 import numpy as np
 from sqlalchemy.orm import Session
 
-from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
+from classes.Risk_Components import SentimentAnalysisResponse, KeyRisks
 from classes.News import NewsArticle, RelatedArticle
 from models.models import Stock
 
