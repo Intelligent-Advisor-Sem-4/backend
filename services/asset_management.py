@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from classes.Asset import Asset, DB_Stock, AssetFastInfo
 from models.models import Stock, AssetStatus
-from services.risk_analysis.analyser import RiskAnalysis
 from services.utils import calculate_shallow_risk_score
 
 
