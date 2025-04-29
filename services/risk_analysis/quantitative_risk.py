@@ -191,9 +191,9 @@ class QuantitativeRiskService:
                 beta = None
 
             # Check for EPS in info dictionary
-            eps = info.get('trailingEPS')  # Most commonly available EPS metric
+            eps = info.get('trailingEps')  # Most commonly available EPS metric
             if eps is None:
-                eps = info.get('forwardEPS')  # Alternative if trailing EPS not available
+                eps = info.get('forwardEps')  # Alternative if trailing EPS not available
 
             # 3. RSI (Relative Strength Index)
             delta = hist['Close'].diff().dropna()
@@ -289,7 +289,8 @@ class QuantitativeRiskService:
                 beta=quantitative_analysis.beta,
                 rsi=quantitative_analysis.rsi,
                 volume_change=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity
+                debt_to_equity=quantitative_analysis.debt_to_equity,
+                eps=quantitative_analysis.eps
             )
 
             # Generate AI explanation

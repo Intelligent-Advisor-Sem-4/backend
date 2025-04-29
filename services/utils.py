@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict
 import numpy as np
 from sqlalchemy.orm import Session
@@ -12,8 +13,11 @@ def parse_news_article(article: dict) -> NewsArticle:
     content = article.get("content", {})
     provider = content.get("provider", {})
     canonical_url = content.get("canonicalUrl", {}).get("url", "")
-    thumbnail_data = content.get("thumbnail", {})
-    resolutions = thumbnail_data.get("resolutions", [])
+    # Get thumbnail data safely
+    thumbnail_data = content.get("thumbnail")
+    resolutions = thumbnail_data.get("resolutions", []) if thumbnail_data is not None else []
+
+    print("Parsing news article:", content.get("title"))
 
     if resolutions:
         # Find the smallest thumbnail by area (width × height)
@@ -42,11 +46,11 @@ def parse_news_article(article: dict) -> NewsArticle:
 
     for item in storyline_items:
         sub = item["content"]
+        print('Sub item:', sub.get("title", ""))
         news.related_articles.append(RelatedArticle(
             title=sub.get("title"),
             url=sub.get("canonicalUrl", {}).get("url", ""),
             content_type=sub.get("contentType"),
-            thumbnail_url=sub.get("thumbnail", {}).get("url", ""),
             provider_name=sub.get("provider", {}).get("displayName")
         ))
 
@@ -78,16 +82,23 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, 
     # Non-linear EPS risk scoring
     eps_risk = 5  # Default neutral score if EPS is None
     if eps is not None:
-        if eps < 0:
+        # Convert Decimal to float if needed
+        eps_value = float(eps) if isinstance(eps, Decimal) else eps
+
+        if eps_value < 0:
             # Negative EPS = higher risk (non-linear: more negative = exponentially higher risk)
-            eps_risk = min(10.0, 7.0 + min(3.0, abs(eps) / 2))  # 7-10 range for negative EPS
+            eps_risk = min(10.0, 7.0 + min(3.0, abs(eps_value) / 2))  # 7-10 range for negative EPS
         else:
             # Positive EPS = lower risk (non-linear: diminishing returns for very high EPS)
-            eps_risk = max(0.0, 5.0 - min(5.0, np.sqrt(eps)))  # 0-5 range for positive EPS
+            eps_risk = max(0.0, 5.0 - min(5.0, np.sqrt(eps_value)))  # 0-5 range for positive EPS
 
     # Combine into overall quantitative risk score
-    quant_risk_score = np.mean(
-        [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk, eps_risk] if x is not None])
+    # Convert any Decimal values to float before calculating mean
+    quant_risk_score = np.mean([
+        float(x) if isinstance(x, Decimal) else x
+        for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk, eps_risk]
+        if x is not None
+    ])
 
     return {
         "volatility_score": float(volatility_score),

@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 import json
 import asyncio
 from typing import AsyncGenerator
+from fastapi.encoders import jsonable_encoder
+
 
 from db.dbConnect import get_db
 from services.risk_analysis.analyser import RiskAnalysis
@@ -18,32 +20,30 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
 
         # Step 1: Send news articles
         news_articles = analyzer.get_news()
-        yield f"data: {json.dumps({'type': 'news_articles', 'data': [article.dict() for article in news_articles]})}\n\n"
+        # Convert to JSON-serializable format first
+        serializable_articles = jsonable_encoder([article.dict() for article in news_articles])
+        yield f"data: {json.dumps({'type': 'news_articles', 'data': serializable_articles})}\n\n"
         await asyncio.sleep(0.1)  # Small delay between messages
 
-        # Step 2: Send news sentiment report
-        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=True)
-        yield f"data: {json.dumps({'type': 'news_sentiment', 'data': news_sentiment})}\n\n"
+        # Apply the same pattern to other responses
+        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False)
+        yield f"data: {json.dumps({'type': 'news_sentiment', 'data': jsonable_encoder(news_sentiment)})}\n\n"
         await asyncio.sleep(0.1)
 
-        # Step 3: Send quantitative risk report
         quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days)
-        yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': quantitative_risk})}\n\n"
+        yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': jsonable_encoder(quantitative_risk)})}\n\n"
         await asyncio.sleep(0.1)
 
-        # Step 4: Send ESG report
         esg_risk = analyzer.get_esg_risk()
-        yield f"data: {json.dumps({'type': 'esg_risk', 'data': esg_risk})}\n\n"
+        yield f"data: {json.dumps({'type': 'esg_risk', 'data': jsonable_encoder(esg_risk)})}\n\n"
         await asyncio.sleep(0.1)
 
-        # Step 5: Send anomaly detection report
         anomaly_risk = analyzer.get_anomaly_risk(lookback_days=lookback_days)
-        yield f"data: {json.dumps({'type': 'anomaly_risk', 'data': anomaly_risk})}\n\n"
+        yield f"data: {json.dumps({'type': 'anomaly_risk', 'data': jsonable_encoder(anomaly_risk)})}\n\n"
         await asyncio.sleep(0.1)
 
-        # Step 6: Send overall risk report
         overall_risk = analyzer.calculate_overall_risk()
-        yield f"data: {json.dumps({'type': 'overall_risk', 'data': overall_risk})}\n\n"
+        yield f"data: {json.dumps({'type': 'overall_risk', 'data': jsonable_encoder(overall_risk)})}\n\n"
 
         # Signal completion
         yield f"data: {json.dumps({'type': 'complete'})}\n\n"
@@ -55,8 +55,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
         error_msg = f"Unexpected error: {str(e)}"
         yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
 
-
-@router.get("/risk-analysis/{ticker}/stream")
+@router.get("/{ticker}/stream")
 async def stream_risk_analysis(
         ticker: str,
         lookback_days: int = 30,
