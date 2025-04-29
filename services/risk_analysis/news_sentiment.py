@@ -1,5 +1,6 @@
+import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -7,8 +8,27 @@ from yfinance import Ticker
 
 from classes.Sentiment import SentimentAnalysisResponse
 from models.models import NewsRiskAnalysis
-from services.utils import parse_news_article, default_sentiment, parse_gemini_response, get_stock_by_ticker
+from services.utils import parse_news_article, default_sentiment, get_stock_by_ticker, parse_gemini_json_response
 from classes.News import NewsArticle
+
+
+def parse_gemini_response(response) -> Dict[str, Any]:
+    """Parse and clean Gemini's response"""
+    try:
+        # Use common utility function to parse the response
+        sentiment_data = parse_gemini_json_response(response.text)
+
+        # Add risk score based on sentiment if it's not already there
+        if "risk_score" not in sentiment_data:
+            risk_score = max(0, 10 - sentiment_data.get("stability_score", 0))
+            sentiment_data["risk_score"] = risk_score
+
+        return sentiment_data
+
+    except json.JSONDecodeError as e:
+        print(f"Error parsing Gemini response: {e}")
+        # Return default sentiment data or raise the exception
+        raise
 
 
 class NewsSentimentService:
@@ -25,8 +45,9 @@ class NewsSentimentService:
         articles = self.ticker_data.get_news(count=limit)
         return [parse_news_article(article) for article in articles]
 
-    def generate_news_sentiment(self, articles: List[NewsArticle]) -> SentimentAnalysisResponse:
-        """Use Gemini to analyze news sentiment and store results in database"""
+    def generate_news_sentiment(self, articles: List[NewsArticle], use_gemini: bool = True) -> Optional[
+        SentimentAnalysisResponse]:
+        """Use Gemini to analyze news sentiment and store results in database if you use_gemini is True"""
         print('Generating news sentiment analysis')
         # Default sentiment for no articles or error cases
         default_sentiment_data = {
@@ -51,6 +72,18 @@ class NewsSentimentService:
         if not articles:
             print('No articles found for sentiment analysis')
             sentiment_data = default_sentiment_data
+        elif not use_gemini:
+            if self.stock is None:
+                print('No stock in database and Gemini disabled')
+                return None
+            # If Gemini is disabled, check if we have data in the database first
+            existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            if existing_analysis:
+                try:
+                    return SentimentAnalysisResponse(**existing_analysis.response_json)
+                except ValidationError:
+                    pass  # If validation fails, continue to return None
+            return None  # Return None if Gemini is disabled and no valid database entry exists
         else:
             sentiment_response = None
             try:
@@ -90,6 +123,9 @@ class NewsSentimentService:
             # Parse the data through the Pydantic model for validation
             sentiment_model = SentimentAnalysisResponse(**sentiment_data)
 
+            if not self.stock:
+                print("No stock in database to store")
+                return sentiment_model
             try:
                 # Check if an analysis already exists for this stock
                 existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
@@ -141,6 +177,9 @@ class NewsSentimentService:
     def _store_fallback_sentiment(self, fallback_model: SentimentAnalysisResponse) -> None:
         """Store fallback sentiment in the database"""
         print("Something has gone wrong storing fallback sentiment")
+        if not self.stock:
+            print("No stock in database to store")
+            return None
         try:
             existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -177,15 +216,15 @@ class NewsSentimentService:
         news_text = f"Recent news articles about {self.ticker}:\n\n"
 
         for i, article in enumerate(articles, 1):
-            news_text += f"{i}. Title: {article['title']}\n"
-            news_text += f"   Date: {article['publish_date']}\n"
-            news_text += f"   Source: {article['provider_name']}\n"
-            news_text += f"   Summary: {article['summary']}\n\n"
+            news_text += f"{i}. Title: {article.title}\n"
+            news_text += f"   Date: {article.publish_date}\n"
+            news_text += f"   Source: {article.provider_name}\n"
+            news_text += f"   Summary: {article.summary}\n\n"
 
-            if article.get('related_articles'):
+            if article.related_articles:
                 news_text += "   Related articles:\n"
-                for related in article['related_articles']:
-                    news_text += f"   - {related['title']} ({related['provider_name']})\n"
+                for related in article.related_articles:
+                    news_text += f"   - {related.title} ({related.title})\n"
                 news_text += "\n"
 
         return news_text
@@ -193,8 +232,9 @@ class NewsSentimentService:
     def _create_sentiment_prompt(self, news_text: str) -> str:
         """Create the prompt for Gemini"""
         print('Creating sentiment analysis prompt for Gemini')
+        asset_name = self.stock.asset_name if self.stock else self.ticker
         return f"""
-        As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({self.stock.asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
+        As a financial risk and compliance analyst for a stock screening platform, analyze the following news articles about {self.ticker} ({asset_name}) to assess its stability and security from a regulatory, operational, and investor-protection perspective.
 
         {news_text}
 
@@ -221,13 +261,33 @@ class NewsSentimentService:
         Ensure output is valid JSON and optimized for downstream explainability modules.
         """
 
-    def get_news_sentiment(self, prefer_newest: bool = True) -> SentimentAnalysisResponse:
+    def get_news_sentiment(self, prefer_newest: bool = True, use_gemini: bool = True) -> Optional[
+        SentimentAnalysisResponse]:
         """Fetch news sentiment for the stock"""
         print("Getting news sentiment")
-        if prefer_newest:
+
+        # Return early if stock is None and we're not using Gemini
+        if self.stock is None and not use_gemini:
+            print("No stock in database and Gemini disabled, returning None")
+            return None
+
+        # If Gemini is disabled, check if we have existing sentiment data
+        if not use_gemini:
+            print("Gemini disabled, checking database only")
+            news_sentiment_not_gemini = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
+            if news_sentiment_not_gemini:
+                try:
+                    print("Returning existing sentiment report")
+                    return SentimentAnalysisResponse(**news_sentiment_not_gemini.response_json)
+                except ValidationError:
+                    print("Invalid sentiment data in database")
+            return None
+
+        # Normal processing with Gemini enabled
+        if prefer_newest or self.stock is None:
             print("Generating brand new sentiment")
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)
 
         # Check if sentiment already exists in the database
         print("Checking existing sentiment")
@@ -237,13 +297,12 @@ class NewsSentimentService:
         if not news_sentiment or news_sentiment.created_at < datetime.utcnow() - timedelta(hours=6):
             print("No sentiment found or found older sentiment")
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)
 
-        # Otherwise, construct a SentimentAnalysisResponse from the database record
         try:
             print("Returning existing sentiment report")
             return SentimentAnalysisResponse(**news_sentiment.response_json)
         except ValidationError:
             # If the stored JSON is invalid, generate a new sentiment
             articles = self.get_news_articles(limit=10)
-            return self.generate_news_sentiment(articles)
+            return self.generate_news_sentiment(articles, use_gemini=use_gemini)

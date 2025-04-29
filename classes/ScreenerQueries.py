@@ -5,37 +5,37 @@ from yfinance import EquityQuery as EqyQy
 
 SECTOR_SCREENER_QUERIES = {
     'technology': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                 "query": EqyQy('and', [EqyQy('eq', ["sector", 'Technology']),
-                                                        EqyQy('eq', ['region', 'us'])])},
+                   "query": EqyQy('and', [EqyQy('eq', ["sector", 'Technology']),
+                                          EqyQy('eq', ['region', 'us'])])},
     'healthcare': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                 "query": EqyQy('and', [EqyQy('eq', ['sector', 'Healthcare']),
-                                                        EqyQy('eq', ['region', 'us'])])},
+                   "query": EqyQy('and', [EqyQy('eq', ['sector', 'Healthcare']),
+                                          EqyQy('eq', ['region', 'us'])])},
     'financial': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                "query": EqyQy('and', [EqyQy('eq', ['sector', 'Financial Services']),
-                                                       EqyQy('eq', ['region', 'us'])])},
+                  "query": EqyQy('and', [EqyQy('eq', ['sector', 'Financial Services']),
+                                         EqyQy('eq', ['region', 'us'])])},
     'consumer_cyclical': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                        "query": EqyQy('and', [EqyQy('eq', ['sector', 'Consumer Cyclical']),
-                                                               EqyQy('eq', ['region', 'us'])])},
+                          "query": EqyQy('and', [EqyQy('eq', ['sector', 'Consumer Cyclical']),
+                                                 EqyQy('eq', ['region', 'us'])])},
     'industrials': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                  "query": EqyQy('and', [EqyQy('eq', ['sector', 'Industrials']),
-                                                         EqyQy('eq', ['region', 'us'])])},
+                    "query": EqyQy('and', [EqyQy('eq', ['sector', 'Industrials']),
+                                           EqyQy('eq', ['region', 'us'])])},
     'communication_services': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                             "query": EqyQy('and', [EqyQy('eq', ['sector', 'Communication Services']),
-                                                                    EqyQy('eq', ['region', 'us'])])},
+                               "query": EqyQy('and', [EqyQy('eq', ['sector', 'Communication Services']),
+                                                      EqyQy('eq', ['region', 'us'])])},
     'utilities': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                "query": EqyQy('and',
-                                               [EqyQy('eq', ['sector', 'Utilities']), EqyQy('eq', ['region', 'us'])])},
+                  "query": EqyQy('and',
+                                 [EqyQy('eq', ['sector', 'Utilities']), EqyQy('eq', ['region', 'us'])])},
     'consumer_defensive': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                         "query": EqyQy('and', [EqyQy('eq', ['sector', 'Consumer Defensive']),
-                                                                EqyQy('eq', ['region', 'us'])])},
+                           "query": EqyQy('and', [EqyQy('eq', ['sector', 'Consumer Defensive']),
+                                                  EqyQy('eq', ['region', 'us'])])},
     'energy': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                             "query": EqyQy('and', [EqyQy('eq', ['sector', 'Energy']), EqyQy('eq', ['region', 'us'])])},
+               "query": EqyQy('and', [EqyQy('eq', ['sector', 'Energy']), EqyQy('eq', ['region', 'us'])])},
     'real_estate': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                  "query": EqyQy('and', [EqyQy('eq', ['sector', 'Real Estate']),
-                                                         EqyQy('eq', ['region', 'us'])])},
+                    "query": EqyQy('and', [EqyQy('eq', ['sector', 'Real Estate']),
+                                           EqyQy('eq', ['region', 'us'])])},
     'basic_materials': {"sortField": "intradaymarketcap", "sortType": "DESC",
-                                      "query": EqyQy('and', [EqyQy('eq', ['sector', 'Basic Materials']),
-                                                             EqyQy('eq', ['region', 'us'])])},
+                        "query": EqyQy('and', [EqyQy('eq', ['sector', 'Basic Materials']),
+                                               EqyQy('eq', ['region', 'us'])])},
 }
 
 
@@ -98,7 +98,7 @@ class MinimalStockInfo(BaseModel):
     priceChangePercent: Optional[float]
     exchange: Optional[str]
     market: Optional[str]
-    riskLevel: Optional[str]
+    risk_score: Optional[float]
     in_db: Optional[bool]
 
 

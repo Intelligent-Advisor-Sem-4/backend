@@ -65,6 +65,7 @@ class Stock(Base):
     first_data_point_date = Column(Date, nullable=True)
     last_data_point_date = Column(Date, nullable=True)
     risk_score = Column(Numeric(10, 2), nullable=True)
+    risk_score_updated = Column(DateTime, nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -179,9 +180,6 @@ class NewsRiskAnalysis(Base):
 
     stock = relationship("Stock", back_populates="news_risk_analysis")
 
-    def __repr__(self):
-        return f"<NewsRiskAnalysis(news_id='{self.news_id}', stability_label='{self.stability_label}')>"
-
 
 class QuantitativeRiskAnalysis(Base):
     __tablename__ = "quantitative_risk_analysis"
@@ -192,6 +190,7 @@ class QuantitativeRiskAnalysis(Base):
     rsi = Column(Numeric(10, 4), nullable=True)
     volume_change = Column(Numeric(10, 4), nullable=True)
     debt_to_equity = Column(Numeric(10, 4), nullable=True)
+    eps = Column(Numeric(10, 4), nullable=True)
     stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)

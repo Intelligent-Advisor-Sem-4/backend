@@ -1,5 +1,4 @@
 import json
-import re
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
@@ -10,7 +9,7 @@ import yfinance as yf
 from yfinance import Ticker
 
 from models.models import QuantitativeRiskAnalysis
-from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker
+from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_gemini_json_response
 
 
 class QuantitativeRiskService:
@@ -22,28 +21,56 @@ class QuantitativeRiskService:
         self.stock = get_stock_by_ticker(db, ticker)
 
     def _generate_quantitative_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
-                                                quant_risk_score) -> Dict[str, str]:
-        """Generate a risk explanation and label using Google Gemini API"""
+                                                quant_risk_score, eps=None, use_gemini=True) -> Dict[str, str]:
+        """Generate a risk explanation and label using Google Gemini API if you use_gemini is True"""
         print("Generating risk explanation")
         try:
+            # If Gemini integration is disabled, return default response
+            if not use_gemini:
+                # Provide a default risk assessment based on the quantitative score
+                if quant_risk_score >= 8:
+                    risk_label = "High Risk"
+                    explanation = f"{ticker} shows significant volatility and concerning financial metrics. Current metrics indicate heightened investment risk."
+                elif quant_risk_score >= 6:
+                    risk_label = "Moderate Risk"
+                    explanation = f"{ticker} exhibits some concerning financial indicators. Consider the volatility and debt levels before investing."
+                elif quant_risk_score >= 4:
+                    risk_label = "Slight Risk"
+                    explanation = f"{ticker} shows moderate stability with some risk factors. Financial metrics suggest caution is warranted."
+                elif quant_risk_score >= 2:
+                    risk_label = "Stable"
+                    explanation = f"{ticker} demonstrates good stability across key metrics. Overall financial health appears solid."
+                else:
+                    risk_label = "Very Stable"
+                    explanation = f"{ticker} shows excellent stability and strong financial metrics. Risk factors appear well-managed."
+
+                return {
+                    "risk_label": risk_label,
+                    "explanation": explanation
+                }
+
             # Format values properly with conditional handling
             beta_str = f"{beta:.2f}" if beta is not None else "N/A"
             debt_str = f"{debt_to_equity:.2f}" if debt_to_equity is not None else "N/A"
+            eps_str = f"{eps:.2f}" if eps is not None else "N/A"
 
             # Prepare the prompt for Gemini
             prompt = f"""
-            As a financial risk analyst, analyze the following stock metrics for {ticker}:
+            As a financial risk analyst for a platform that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
 
             - Volatility: {volatility:.2f}% (annualized)
             - Beta: {beta_str}
             - RSI: {rsi:.2f}
             - Recent Volume Change: {volume_change:.2f}%
             - Debt-to-Equity Ratio: {debt_str}
+            - Earnings Per Share (EPS): {eps_str}
             - Overall Risk Score: {quant_risk_score:.2f}/10
+
+            Our mission is NOT to advise on investments but to identify and flag potentially risky assets that could harm retail investors.
 
             Provide your analysis in JSON format with exactly these two fields:
             1. "risk_label": Choose exactly one label from ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-            2. "explanation": A concise explanation (2-3 sentences) of the primary risk factors and their implications
+            2. "explanation": A concise explanation (2-3 sentences) of the primary risk factors and their implications, mentioning EPS if it's a significant factor
 
             Return only valid JSON with no additional text, comments, or markdown formatting.
             """
@@ -52,23 +79,9 @@ class QuantitativeRiskService:
             response = self.gemini_client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
             response_text = response.text
 
-            # Parse the JSON response
-            # First, try to find JSON between code blocks if present
-            json_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
-            json_match = re.search(json_pattern, response_text)
-
-            if json_match:
-                json_text = json_match.group(1)
-            else:
-                # If no code blocks, treat the entire response as JSON
-                json_text = response_text
-
-            # Clean up any remaining markdown or text artifacts
-            json_text = json_text.strip()
-
-            # Parse JSON
+            # Parse the JSON response using the common utility function
             try:
-                result = json.loads(json_text)
+                result = parse_gemini_json_response(response_text)
 
                 # Validate the response has required fields
                 if "risk_label" not in result or "explanation" not in result:
@@ -94,9 +107,14 @@ class QuantitativeRiskService:
                 "explanation": "Risk analysis not available due to an error."
             }
 
-    def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity) -> None:
+    def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity, eps=None) -> None:
         """Store or update quantitative risk analysis in the database"""
         print("Storing quantitative analysis record")
+        # Return early if stock is None
+        if self.stock is None:
+            print("No stock in database to store")
+            return None
+
         try:
             existing_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -109,8 +127,6 @@ class QuantitativeRiskService:
                 existing_analysis.volume_change = volume_change
                 existing_analysis.debt_to_equity = debt_to_equity
                 existing_analysis.updated_at = datetime.utcnow()
-
-
             else:
                 # Create new record
                 print("Creating new report")
@@ -122,7 +138,8 @@ class QuantitativeRiskService:
                     debt_to_equity=to_python_type(debt_to_equity),
                     stock_id=self.stock.stock_id,
                     created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.utcnow(),
+                    eps=eps,
                 )
                 self.db.add(quantitative_analysis)
 
@@ -131,7 +148,7 @@ class QuantitativeRiskService:
             self.db.rollback()
             print(f"[Database Error] Failed to store quantitative risk analysis: {e}")
 
-    def calculate_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
+    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
         """Calculate key quantitative risk metrics"""
         print('Calculating quantitative metrics')
         end_date = datetime.now()
@@ -152,21 +169,31 @@ class QuantitativeRiskService:
 
             # 2. Beta (market risk)
             try:
-                market_data = yf.Ticker('^GSPC').history(start=start_date, end=end_date)  # S&P 500 as market index
-                market_returns = market_data['Close'].pct_change().dropna()
+                # Check if beta is available in info
+                beta = info.get('beta')
+                if beta is not None:
+                    beta = float(beta)
+                else:
+                    market_data = yf.Ticker('^GSPC').history(start=start_date, end=end_date)  # S&P 500 as market index
+                    market_returns = market_data['Close'].pct_change().dropna()
 
-                # Align both series to have matching dates
-                common_idx = daily_returns.index.intersection(market_returns.index)
-                stock_returns_aligned = daily_returns.loc[common_idx]
-                market_returns_aligned = market_returns.loc[common_idx]
+                    # Align both series to have matching dates
+                    common_idx = daily_returns.index.intersection(market_returns.index)
+                    stock_returns_aligned = daily_returns.loc[common_idx]
+                    market_returns_aligned = market_returns.loc[common_idx]
 
-                # Calculate beta
-                covariance = stock_returns_aligned.cov(market_returns_aligned)
-                market_variance = market_returns_aligned.var()
-                beta = covariance / market_variance
+                    # Calculate beta
+                    covariance = stock_returns_aligned.cov(market_returns_aligned)
+                    market_variance = market_returns_aligned.var()
+                    beta = covariance / market_variance
             except Exception as e:
                 print(f"Error calculating beta: {e}")
                 beta = None
+
+            # Check for EPS in info dictionary
+            eps = info.get('trailingEPS')  # Most commonly available EPS metric
+            if eps is None:
+                eps = info.get('forwardEPS')  # Alternative if trailing EPS not available
 
             # 3. RSI (Relative Strength Index)
             delta = hist['Close'].diff().dropna()
@@ -193,6 +220,17 @@ class QuantitativeRiskService:
                 beta=beta,
                 rsi=rsi,
                 volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
+                eps=eps
+            )
+
+            # Store the quantitative risk analysis in the database
+            self._store_quantitative_risk_analysis(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                eps=eps,
+                volume_change=volume_change,
                 debt_to_equity=debt_to_equity
             )
 
@@ -207,16 +245,9 @@ class QuantitativeRiskService:
                 rsi=rsi,
                 volume_change=volume_change,
                 debt_to_equity=debt_to_equity,
-                quant_risk_score=quant_risk_score
-            )
-
-            # Store the quantitative risk analysis in the database
-            self._store_quantitative_risk_analysis(
-                volatility=volatility,
-                beta=beta,
-                rsi=rsi,
-                volume_change=volume_change,
-                debt_to_equity=debt_to_equity
+                quant_risk_score=quant_risk_score,
+                eps=eps,
+                use_gemini=use_gemini
             )
 
             # Return the complete results
@@ -240,21 +271,50 @@ class QuantitativeRiskService:
                 "risk_explanation": "Unable to calculate risk metrics due to an error."
             }
 
-    def get_quantitative_metrics(self, lookback_days: int = 30) -> Dict[str, Any]:
+    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
         print("Get quantitative metrics")
+
+        # If stock is None, always calculate new metrics
+        if self.stock is None:
+            print("No stock in database, calculating new metrics")
+            return self.calculate_quantitative_metrics(lookback_days, use_gemini)
+
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
         if quantitative_analysis and quantitative_analysis.created_at > datetime.utcnow() - timedelta(days=2):
             print("Existing metric exists")
+            risk_scores = calculate_risk_scores(
+                volatility=quantitative_analysis.volatility,
+                beta=quantitative_analysis.beta,
+                rsi=quantitative_analysis.rsi,
+                volume_change=quantitative_analysis.volume_change,
+                debt_to_equity=quantitative_analysis.debt_to_equity
+            )
+
+            # Generate AI explanation
+            risk_analysis = self._generate_quantitative_risk_explanation(
+                ticker=self.ticker,
+                volatility=quantitative_analysis.volatility,
+                beta=quantitative_analysis.beta,
+                rsi=quantitative_analysis.rsi,
+                volume_change=quantitative_analysis.volume_change,
+                debt_to_equity=quantitative_analysis.debt_to_equity,
+                quant_risk_score=risk_scores["quant_risk_score"],
+                use_gemini=use_gemini
+            )
+
             return {
                 "volatility": quantitative_analysis.volatility,
                 "beta": quantitative_analysis.beta,
                 "rsi": quantitative_analysis.rsi,
                 "volume_change_percent": quantitative_analysis.volume_change,
-                "debt_to_equity": quantitative_analysis.debt_to_equity
+                "debt_to_equity": quantitative_analysis.debt_to_equity,
+                "risk_metrics": risk_scores,
+                "risk_label": risk_analysis["risk_label"],
+                "risk_explanation": risk_analysis["explanation"]
             }
 
         # If no recent analysis exists, calculate new metrics
         print("No recent analysis found, calculating new metrics")
-        return self.calculate_quantitative_metrics(lookback_days)
+        return self.calculate_quantitative_metrics(lookback_days, use_gemini)

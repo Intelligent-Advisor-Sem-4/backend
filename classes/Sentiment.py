@@ -60,7 +60,7 @@ class SentimentAnalysisResponse(BaseModel):
     error_details: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "stability_score": 2.5,
                 "stability_label": "Moderate Risk",
