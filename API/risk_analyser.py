@@ -27,7 +27,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
 
     # Step 2: News sentiment
     try:
-        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False)
+        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False, use_gemini=True)
         yield f"data: {json.dumps({'type': 'news_sentiment', 'data': jsonable_encoder(news_sentiment)})}\n\n"
     except Exception as e:
         yield f"data: {json.dumps({'type': 'section_error', 'section': 'news_sentiment', 'message': str(e)})}\n\n"
@@ -35,7 +35,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
 
     # Step 3: Quantitative risk
     try:
-        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_gemini=False)
+        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_gemini=True)
         yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': jsonable_encoder(quantitative_risk)})}\n\n"
     except Exception as e:
         yield f"data: {json.dumps({'type': 'section_error', 'section': 'quantitative_risk', 'message': str(e)})}\n\n"
@@ -91,6 +91,9 @@ async def stream_risk_analysis(
 
     Returns:
         Server-Sent Events stream with risk analysis data
+        :param ticker:
+        :param lookback_days:
+        :param db:
     """
     return StreamingResponse(
         risk_analysis_stream(ticker, lookback_days, db),

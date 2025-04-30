@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 from typing import Optional, List, Union, Literal
 
@@ -57,6 +59,10 @@ class SentimentAnalysisResponse(BaseModel):
         ge=0,
         le=10
     )
+    updated_at: Optional[str] = Field(
+        None,
+        description="Timestamp of the last update to the risk assessment",
+    )
     error_details: Optional[str] = None
 
     class Config:
@@ -83,7 +89,8 @@ class SentimentAnalysisResponse(BaseModel):
                     "CFO departure announced amid quarterly earnings miss",
                     "EU regulators launching formal investigation into market practices"
                 ],
-                "risk_score": 7.5
+                "risk_score": 7.5,
+                "updated_at": "2023-10-01T12:00:00Z",
             }
         }
 
@@ -123,7 +130,7 @@ class AnomalyFlag(BaseModel):
     type: Optional[str] = None
     date: Optional[str] = None
     description: Optional[str] = None
-    severity: Optional[str] = None
+    severity: Optional[float] = None
 
 
 class AnomalyDetectionResponse(BaseModel):

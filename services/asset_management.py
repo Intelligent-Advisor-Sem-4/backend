@@ -1,5 +1,3 @@
-import sys
-
 import yfinance as yf
 from sqlalchemy.orm import Session
 
@@ -163,10 +161,10 @@ if __name__ == "__main__":
     # Example usage
     from db.dbConnect import get_db
 
-    db = get_db()
-    session = next(db)
+    db_o = get_db()
+    session = next(db_o)
     try:
         ticker = get_asset_by_ticker(session, "AEXAF")
         print(ticker)
     finally:
-        db.close()
+        db_o.close()

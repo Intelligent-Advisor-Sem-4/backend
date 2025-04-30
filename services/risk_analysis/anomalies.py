@@ -38,7 +38,7 @@ class AnomalyDetectionService:
                     type="Price Gap",
                     date=date.strftime("%Y-%m-%d"),
                     description=f"Unusual price change of {change * 100:.2f}% (over 3σ)",
-                    severity=str(float(severity))  # Convert to string as defined in the model
+                    severity=float(severity)  # Convert to string as defined in the model
                 ))
 
             # 2. Check for unusual volume spikes
@@ -54,7 +54,7 @@ class AnomalyDetectionService:
                     type="Volume Spike",
                     date=date.strftime("%Y-%m-%d"),
                     description=f"Volume {volume_ratio:.1f}x above average",
-                    severity=str(float(severity))  # Convert to string as defined in the model
+                    severity=float(severity)  # Convert to string as defined in the model
                 ))
 
             # 3. Check for bearish patterns (e.g., consecutive down days)
@@ -69,7 +69,7 @@ class AnomalyDetectionService:
                     type="Bearish Pattern",
                     date=bearish_runs.idxmax().strftime("%Y-%m-%d"),
                     description=f"{int(bearish_runs.max())} down days in a 5-day window",
-                    severity=str(float(severity))  # Convert to string as defined in the model
+                    severity=float(severity)  # Convert to string as defined in the model
                 ))
 
             # Calculate anomaly score
