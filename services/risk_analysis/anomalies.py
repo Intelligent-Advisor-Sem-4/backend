@@ -38,7 +38,7 @@ class AnomalyDetectionService:
                     type="Price Gap",
                     date=date.strftime("%Y-%m-%d"),
                     description=f"Unusual price change of {change * 100:.2f}% (over 3σ)",
-                    severity=float(severity)  # Convert to string as defined in the model
+                    severity=float(severity)  # Convert to float as defined in the model
                 ))
 
             # 2. Check for unusual volume spikes
