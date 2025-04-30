@@ -1,8 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict
 import numpy as np
 from sqlalchemy.orm import Session
+from core.middleware import logger
+
 
 from classes.Risk_Components import SentimentAnalysisResponse, KeyRisks
 from classes.News import NewsArticle, RelatedArticle
