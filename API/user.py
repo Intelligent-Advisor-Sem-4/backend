@@ -7,11 +7,12 @@ from pydantic.v1 import EmailStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from core.middleware import logger
-from core.security import pwd_context, verify_password, create_access_token, get_current_active_user
+from core.security import create_access_token, get_current_active_user
+from core.password import pwd_context, verify_password, get_password_hash
 from db.dbConnect import get_db
 from models import UserModel
-from classes.User import User, UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
-from models.models import Gender, AccessLevel
+from classes.User import UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
+from models.models import AccessLevel
 
 router = APIRouter(prefix='/auth')
 
@@ -23,7 +24,8 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
-    access_token = create_access_token(data={"sub": db_user.username})
+    access_token = create_access_token(
+        data={"sub": db_user.username, "role": db_user.access_level.value, "user_id": db_user.id})
 
     return LoginResponse(username=db_user.username, token=access_token, role=db_user.access_level,
                          user_id=str(db_user.id),
@@ -51,8 +53,6 @@ async def update_user_password(
 @router.post("/user/reg", status_code=status.HTTP_201_CREATED, response_model=RegistrationResponse)
 async def register_user(user_data: UserRegistration, db: Session = Depends(get_db)):
     # Check if username already exists
-    print('user_data:', user_data)
-
     existing_username = db.query(UserModel).filter(UserModel.username == user_data.username).first()
     if existing_username:
         raise HTTPException(
@@ -68,17 +68,13 @@ async def register_user(user_data: UserRegistration, db: Session = Depends(get_d
             detail="Email already registered"
         )
 
-    # Hash the password
-    hashed_password = pwd_context.hash(user_data.password)
-
     # Create new user
     try:
         new_user = UserModel(
-            id=uuid4(),
             name=user_data.name,
             username=user_data.username,
             email=str(user_data.email),
-            password=hashed_password,
+            password=get_password_hash(user_data.password),
             birthday=user_data.birthday,
             gender=user_data.gender,
             avatar=user_data.avatar,

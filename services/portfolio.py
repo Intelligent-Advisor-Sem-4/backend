@@ -1,14 +1,20 @@
 import numpy as np
-from pypfopt.expected_returns import mean_historical_return
+from pypfopt.expected_returns import mean_historical_return,capm_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
 from utils.finance import fetch_price_data
 from classes.profile import Input
 
 
-def run_markowitz_optimization(price_data):
-    mu = mean_historical_return(price_data)
-    cov = sample_cov(price_data)
+def run_markowitz_optimization(price_data, tickers):
+    # Changed to use CAPM instead of mean historical return
+    # with "SPY" as the benchmark ticker
+    benchmark_ticker = 'SPY'
+    prices = price_data[tickers]
+    market_prices = price_data['SPY']
+    # mu = mean_historical_return(price_data)
+    mu = capm_return(prices, market_prices, risk_free_rate=0.02)
+    cov = sample_cov(prices)
     ef = EfficientFrontier(mu, cov)
     weights = ef.max_sharpe()
     cleaned_weights = ef.clean_weights()
@@ -46,7 +52,7 @@ def simulate_monte_carlo_for_weights(mu, cov, weights_dict, investment_amount, t
 def build_portfolio_response(request: Input):
     price_data = fetch_price_data(request.tickers, request.start_date, request.end_date)
 
-    weights, (exp_return, volatility, sharpe), mu, cov = run_markowitz_optimization(price_data)
+    weights, (exp_return, volatility, sharpe), mu, cov = run_markowitz_optimization(price_data, request.tickers)
 
     monte_carlo_result = simulate_monte_carlo_for_weights(
         mu, cov, weights,

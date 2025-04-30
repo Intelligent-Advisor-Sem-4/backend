@@ -1,28 +1,19 @@
 import os
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import jwt
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
-from classes.security  import Token,TokenData,User,UserInDB
+from classes.security import Token, TokenData, User, UserInDB
+from core.password import verify_password
 from db.dbConnect import get_db
-
 
 router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 600000
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
 
 # User authentication and database query
 def get_user(cursor, username: str):
@@ -41,17 +32,20 @@ def authenticate_user(cursor, username: str, password: str):
     return user
 
 
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=100000))
     to_encode.update({"exp": expire})
 
-    if "sub" not in to_encode:
-        raise ValueError("The 'sub' claim must be set in the token")
+    required_fields = ["sub", "user_id", "role"]
+    for field in required_fields:
+        if field not in to_encode:
+            raise ValueError(f"The '{field}' claim must be set in the token")
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 # Dependency to get the current user
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db=Depends(get_db)):
