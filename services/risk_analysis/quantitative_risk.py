@@ -1,3 +1,4 @@
+import decimal
 import json
 from datetime import datetime, timedelta
 from typing import Dict
@@ -296,23 +297,51 @@ class QuantitativeRiskService:
 
         if quantitative_analysis and quantitative_analysis.updated_at > datetime.now() - timedelta(days=1):
             print("Existing metric exists")
+
+            # Handle NaN values in beta and other fields
+            beta = None
+            try:
+                if quantitative_analysis.beta is not None:
+                    # Check if beta is NaN (works for both Decimal and float)
+                    if str(quantitative_analysis.beta).lower() == 'nan':
+                        beta = None
+                    else:
+                        beta = float(quantitative_analysis.beta)
+            except (ValueError, decimal.InvalidOperation):
+                beta = None
+
+            # Similar handling for other potentially problematic fields
+            volatility = float(
+                quantitative_analysis.volatility) if quantitative_analysis.volatility is not None and str(
+                quantitative_analysis.volatility).lower() != 'nan' else None
+            rsi = float(quantitative_analysis.rsi) if quantitative_analysis.rsi is not None and str(
+                quantitative_analysis.rsi).lower() != 'nan' else None
+            volume_change = float(
+                quantitative_analysis.volume_change) if quantitative_analysis.volume_change is not None and str(
+                quantitative_analysis.volume_change).lower() != 'nan' else None
+            debt_to_equity = float(
+                quantitative_analysis.debt_to_equity) if quantitative_analysis.debt_to_equity is not None and str(
+                quantitative_analysis.debt_to_equity).lower() != 'nan' else None
+            eps = float(quantitative_analysis.eps) if quantitative_analysis.eps is not None and str(
+                quantitative_analysis.eps).lower() != 'nan' else None
+
             risk_scores = calculate_risk_scores(
-                volatility=quantitative_analysis.volatility,
-                beta=quantitative_analysis.beta,
-                rsi=quantitative_analysis.rsi,
-                volume_change=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity,
-                eps=quantitative_analysis.eps
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
+                eps=eps
             )
 
             # Generate AI explanation
             risk_analysis = self._generate_quantitative_risk_explanation(
                 ticker=self.ticker,
-                volatility=quantitative_analysis.volatility,
-                beta=quantitative_analysis.beta,
-                rsi=quantitative_analysis.rsi,
-                volume_change=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity,
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
                 quant_risk_score=risk_scores["quant_risk_score"],
                 use_gemini=use_gemini
             )
@@ -330,11 +359,11 @@ class QuantitativeRiskService:
 
             # Return the results as a Pydantic model
             return QuantRiskResponse(
-                volatility=quantitative_analysis.volatility,
-                beta=quantitative_analysis.beta,
-                rsi=quantitative_analysis.rsi,
-                volume_change_percent=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity,
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change_percent=volume_change,
+                debt_to_equity=debt_to_equity,
                 risk_metrics=risk_metrics,
                 risk_label=risk_analysis["risk_label"],
                 risk_explanation=risk_analysis["explanation"]
