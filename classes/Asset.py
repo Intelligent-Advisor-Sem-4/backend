@@ -1,4 +1,8 @@
-from pydantic import BaseModel
+from datetime import datetime, date
+from decimal import Decimal
+from enum import Enum
+
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -42,3 +46,34 @@ class AssetFastInfo(BaseModel):
     currency: str
     prev_close: Optional[float] = None
     last_price: Optional[float] = None
+
+
+class AssetStatusEnum(str, Enum):
+    PENDING = "Pending"
+    ACTIVE = "Active"
+    WARNING = "Warning"
+    BLACKLIST = "BlackList"
+
+
+class StockResponse(BaseModel):
+    stock_id: int
+    ticker_symbol: str
+    asset_name: Optional[str] = None
+    currency: str = "USD"
+    exchange: Optional[str] = None
+    sectorKey: Optional[str] = None
+    sectorDisp: Optional[str] = None
+    industryKey: Optional[str] = None
+    industryDisp: Optional[str] = None
+    timezone: Optional[str] = None
+    status: AssetStatusEnum = AssetStatusEnum.PENDING
+    type: Optional[str] = None
+    first_data_point_date: Optional[date] = None
+    last_data_point_date: Optional[date] = None
+    risk_score: Optional[Decimal] = Field(None, decimal_places=2)
+    risk_score_updated: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

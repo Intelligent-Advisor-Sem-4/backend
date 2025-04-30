@@ -1,7 +1,7 @@
 import yfinance as yf
 from sqlalchemy.orm import Session
 
-from classes.Asset import Asset, DB_Stock, AssetFastInfo
+from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
 from services.utils import calculate_shallow_risk_score
 
@@ -57,6 +57,22 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
 
 def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
+
+
+def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
+    stocks = db.query(Stock).offset(offset).limit(limit).all()
+
+    result = []
+    for stock in stocks:
+        # Create response model using SQLAlchemy model instance directly
+        # Rely on Pydantic's from_attributes=True to convert attributes
+        result.append(StockResponse.model_validate(stock))
+
+    return result
+
+
+def get_db_stock_count(db: Session) -> int:
+    return db.query(Stock).count()
 
 
 def delete_stock(db: Session, stock_id: int) -> None:
