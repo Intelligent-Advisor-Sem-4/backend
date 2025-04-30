@@ -93,7 +93,7 @@ class NewsSentimentService:
                 prompt = self._create_sentiment_prompt(news_text)
                 # Get response from Gemini
                 print('Generating sentiment analysis with Gemini')
-                sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
+                sentiment_response = self.gemini_client.models.generate_content(model='gemini-1.5-flash',
                                                                                 contents=prompt)
                 sentiment_data = parse_gemini_response(sentiment_response)
 
