@@ -153,6 +153,7 @@ def parse_gemini_json_response(response_text: str) -> dict:
 
     # Clean up the response text
     response_text = response_text.strip()
+    print("Parsing response text:", response_text)
 
     # Remove markdown code block formatting if present
     if response_text.startswith('```json'):

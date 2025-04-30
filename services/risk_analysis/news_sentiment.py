@@ -245,13 +245,13 @@ class NewsSentimentService:
 
         1. **stability_score** (numeric): A score from -10 (extremely unstable/high risk) to +10 (extremely stable/secure)
         2. **stability_label** (string): One of ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-        3. **key_risks** (object): Key risk factors identified, categorized as:
-           - legal_risks (lawsuits, investigations, compliance failures)
-           - governance_risks (executive exits, board conflicts, control disputes)
-           - fraud_indicators (misstatements, shell entities, shady transactions)
-           - political_exposure (foreign influence, sanctions, subsidies, regulations)
-           - operational_risks (supply disruptions, recalls, safety breaches)
-           - financial_stability_issues (high leverage, poor liquidity, debt covenant stress)
+        3. **key_risks** (object): Key risk factors identified, with each category containing an ARRAY OF STRINGS:
+           - legal_risks: Array of strings describing lawsuits, investigations, compliance failures
+           - governance_risks: Array of strings describing executive exits, board conflicts, control disputes
+           - fraud_indicators: Array of strings describing misstatements, shell entities, shady transactions
+           - political_exposure: Array of strings describing foreign influence, sanctions, subsidies, regulations
+           - operational_risks: Array of strings describing supply disruptions, recalls, safety breaches
+           - financial_stability_issues: Array of strings describing high leverage, poor liquidity, debt covenant stress
         4. **security_assessment** (string, max 150 words): Objective summary of potential threats to investor security and financial exposure.
         5. **customer_suitability** (string): One of ["Unsuitable", "Cautious Inclusion", "Suitable"], based on investor protection concerns.
         6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
