@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import yfinance as yf
 from sqlalchemy.orm import Session
 
@@ -64,10 +66,26 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
 
     result = []
     for stock in stocks:
-        # Create response model using SQLAlchemy model instance directly
-        # Rely on Pydantic's from_attributes=True to convert attributes
-        result.append(StockResponse.model_validate(stock))
+        # Check if risk_score_updates is older than 1 day
+        if stock.risk_score_updated and (datetime.now() - stock.risk_score_updated).days > 1:
+            t = yf.Ticker(stock.ticker_symbol)
+            info = t.info
+            risk_score = calculate_shallow_risk_score(
+                market_cap=info.get("marketCap"),
+                high=info.get("fiftyTwoWeekHigh"),
+                low=info.get("fiftyTwoWeekLow"),
+                pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
+                eps=info.get("trailingEps"),
+                debt_to_equity=info.get("debtToEquity"),
+                beta=info.get("beta"),
+            )
 
+            stock.risk_score = risk_score
+            stock.risk_score_updated = datetime.now()
+            db.commit()
+
+        # Create response model using SQLAlchemy model instance directly
+        result.append(StockResponse.model_validate(stock))
     return result
 
 
@@ -82,6 +100,18 @@ def delete_stock(db: Session, stock_id: int) -> None:
 
     db.delete(stock)
     db.commit()
+
+
+def update_stock_risk_score(db: Session, stock_id: int, risk_score: float) -> Stock:
+    stock = db.query(Stock).filter_by(stock_id=stock_id).first()
+    if not stock:
+        raise ValueError(f"Stock with ID {stock_id} not found")
+
+    stock.risk_score = risk_score
+    stock.risk_score_updated = datetime.now()
+    db.commit()
+    db.refresh(stock)
+    return stock
 
 
 def get_asset_by_ticker(s: Session, t: str) -> Asset:
