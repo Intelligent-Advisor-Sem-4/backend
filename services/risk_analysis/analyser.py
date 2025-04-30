@@ -13,6 +13,15 @@ from services.risk_analysis.quantitative_risk import QuantitativeRiskService
 from services.risk_analysis.anomalies import AnomalyDetectionService
 from services.utils import get_stock_by_ticker
 from classes.News import NewsArticle
+from classes.Risk_Components import (
+    RiskComponent,
+    OverallRiskComponents,
+    OverallRiskResponse,
+    SentimentAnalysisResponse,
+    QuantRiskResponse,
+    EsgRiskResponse,
+    AnomalyDetectionResponse
+)
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -22,7 +31,7 @@ class RiskAnalysis:
     def __init__(self, ticker: str, db: Session):
         self.ticker = ticker
         self.db = db
-        self.risk_components = {}
+        self.risk_components: Dict[str, Any] = {}
         self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
         ticker_data = yf.Ticker(ticker)
@@ -38,46 +47,53 @@ class RiskAnalysis:
         self.anomaly_service = AnomalyDetectionService(self.ticker, self.ticker_data)
         self.esg_service = ESGDataService(self.ticker, self.ticker_data)
 
-    def calculate_overall_risk(self) -> Dict[str, Any]:
+    def calculate_overall_risk(self) -> OverallRiskResponse:
         """Calculate overall risk score from all components"""
         print("Calculating overall risk")
 
-        # Get news sentiment risk with a default value of 5
-        news_sentiment_risk = getattr(self.risk_components.get("news_sentiment", {}), "risk_score", 5)
+        # Get components
+        news_sentiment = self.risk_components.get("news_sentiment", None)
+        quant_risk = self.risk_components.get("quantitative", None)
+        anomalies = self.risk_components.get("anomalies", None)
+        esg = self.risk_components.get("esg", None)
 
-        # Safely get quantitative risk score
-        quant_component = self.risk_components.get("quantitative", {})
-        quant_risk_score = 5  # Default value
+        # Extract risk scores with defaults
+        news_score = getattr(news_sentiment, "risk_score", 5.0)
+        quant_score = getattr(quant_risk, "quant_risk_score", 5.0)
+        anomaly_score = getattr(anomalies, "anomaly_score", 0.0)
+        esg_score = getattr(esg, "esg_risk_score", 5.0)
 
-        # Handle the case where quant_component could be None or a dictionary
-        if quant_component is not None and isinstance(quant_component, dict):
-            risk_metrics = quant_component.get("risk_metrics", {})
-            if isinstance(risk_metrics, dict):
-                quant_risk_score = risk_metrics.get("quant_risk_score", 5)
+        # Define weights
+        news_weight = 0.30
+        quant_weight = 0.35
+        anomaly_weight = 0.20
+        esg_weight = 0.15
 
-        # Similar safety for anomalies and ESG
-        anomaly_component = self.risk_components.get("anomalies", {})
-        anomaly_score = 0  # Default value
-        if anomaly_component is not None and isinstance(anomaly_component, dict):
-            anomaly_score = anomaly_component.get("anomaly_score", 0)
+        # Create RiskComponent objects
+        news_component = RiskComponent(weight=news_weight, score=news_score)
+        quant_component = RiskComponent(weight=quant_weight, score=quant_score)
+        anomaly_component = RiskComponent(weight=anomaly_weight, score=anomaly_score)
+        esg_component = RiskComponent(weight=esg_weight, score=esg_score)
 
-        esg_component = self.risk_components.get("esg", {})
-        esg_risk_score = 5  # Default value
-        if esg_component is not None and isinstance(esg_component, dict):
-            esg_risk_score = esg_component.get("esg_risk_score", 5)
-
-        components = {
-            "news_sentiment": {"weight": 0.30, "score": news_sentiment_risk},
-            "quantitative": {"weight": 0.35, "score": quant_risk_score},
-            "anomalies": {"weight": 0.20, "score": anomaly_score},
-            "esg": {"weight": 0.15, "score": esg_risk_score}
-        }
+        # Create OverallRiskComponents object
+        components = OverallRiskComponents(
+            news_sentiment=news_component,
+            quant_risk=quant_component,
+            anomaly_detection=anomaly_component,
+            esg_risk=esg_component
+        )
 
         # Calculate weighted risk score
-        weighted_score = sum(comp["weight"] * comp["score"] for comp in components.values())
+        weighted_score = (
+                news_component.weight * news_component.score +
+                quant_component.weight * quant_component.score +
+                anomaly_component.weight * anomaly_component.score +
+                esg_component.weight * esg_component.score
+        )
 
         # Determine risk level
-        risk_level = "Low"
+        from typing import Literal
+        risk_level: Literal["Low", "Medium", "High"] = "Low"
         if weighted_score >= 7:
             risk_level = "High"
         elif weighted_score >= 4:
@@ -91,11 +107,12 @@ class RiskAnalysis:
             self.stock.risk_score_updated = datetime.now()
             self.db.commit()
 
-        return {
-            "overall_risk_score": overall_score,
-            "risk_level": risk_level,
-            "components": components
-        }
+        # Return OverallRiskResponse
+        return OverallRiskResponse(
+            overall_risk_score=overall_score,
+            risk_level=risk_level,
+            components=components
+        )
 
     def generate_risk_report(self, lookback_days: int = 30) -> Dict[str, Any]:
         """Generate comprehensive risk report for the stock"""
@@ -119,12 +136,12 @@ class RiskAnalysis:
             "symbol": self.ticker,
             "company_name": self.stock.asset_name if self.stock else None,
             "analysis_date": datetime.now().isoformat(),
-            "overall_risk": overall_risk,
+            "overall_risk": overall_risk.model_dump(),
             "components": {
-                "news_sentiment": self.risk_components["news_sentiment"],
-                "quantitative_metrics": self.risk_components["quantitative"],
-                "anomalies": self.risk_components["anomalies"],
-                "esg": self.risk_components["esg"]
+                "news_sentiment": self.risk_components["news_sentiment"].dict(),
+                "quantitative_metrics": self.risk_components["quantitative"].dict(),
+                "anomalies": self.risk_components["anomalies"].dict(),
+                "esg": self.risk_components["esg"].dict()
             }
         }
 
@@ -134,25 +151,32 @@ class RiskAnalysis:
         """Generate a fast risk score"""
 
         # If risk score present and not older than one day
-        if self.stock is not None and self.stock.risk_score is not None and self.stock.risk_score_updated and datetime.now() - self.stock.risk_score_updated < timedelta(
-                days=1):
+        if (self.stock is not None and
+                self.stock.risk_score is not None and
+                self.stock.risk_score_updated and
+                datetime.now() - self.stock.risk_score_updated < timedelta(days=1)):
+
             return {
                 "symbol": self.ticker,
                 "risk_score": self.stock.risk_score,
             }
         else:
             # Calculate risk score
-            self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(prefer_newest=False,
-                                                                                          use_gemini=False)
-            self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(lookback_days,
-                                                                                               use_gemini=False)
+            self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(
+                prefer_newest=False,
+                use_gemini=False
+            )
+            self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(
+                lookback_days,
+                use_gemini=False
+            )
             self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
             self.risk_components["esg"] = self.esg_service.get_esg_data()
             overall_risk = self.calculate_overall_risk()
 
             return {
                 "symbol": self.ticker,
-                "risk_score": overall_risk["overall_risk_score"],
+                "risk_score": overall_risk.overall_risk_score,
             }
 
     def get_news(self) -> List[NewsArticle]:
@@ -163,7 +187,8 @@ class RiskAnalysis:
         """
         return self.news_service.get_news_articles(limit=10)
 
-    def get_news_sentiment_risk(self, prefer_newest: bool = False, use_gemini: bool = True) -> Dict[str, Any]:
+    def get_news_sentiment_risk(self, prefer_newest: bool = False,
+                                use_gemini: bool = True) -> SentimentAnalysisResponse:
         """
         Get news sentiment risk component
 
@@ -181,7 +206,7 @@ class RiskAnalysis:
             )
         return self.risk_components["news_sentiment"]
 
-    def get_quantitative_risk(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def get_quantitative_risk(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """
         Get quantitative risk metrics
 
@@ -199,7 +224,7 @@ class RiskAnalysis:
             )
         return self.risk_components["quantitative"]
 
-    def get_anomaly_risk(self, lookback_days: int = 30) -> Dict[str, Any]:
+    def get_anomaly_risk(self, lookback_days: int = 30) -> AnomalyDetectionResponse:
         """
         Get anomaly detection risk component
 
@@ -213,7 +238,7 @@ class RiskAnalysis:
             self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
         return self.risk_components["anomalies"]
 
-    def get_esg_risk(self) -> Dict[str, Any]:
+    def get_esg_risk(self) -> EsgRiskResponse:
         """
         Get ESG risk component
 

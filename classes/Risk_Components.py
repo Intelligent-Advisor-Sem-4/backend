@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field, conlist, conint, constr
-from typing import List, Dict, Optional, Union, Any
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+from typing import Optional, List, Union, Literal
 
 
 class KeyRisks(BaseModel):
@@ -57,6 +59,10 @@ class SentimentAnalysisResponse(BaseModel):
         ge=0,
         le=10
     )
+    updated_at: Optional[str] = Field(
+        None,
+        description="Timestamp of the last update to the risk assessment",
+    )
     error_details: Optional[str] = None
 
     class Config:
@@ -83,6 +89,85 @@ class SentimentAnalysisResponse(BaseModel):
                     "CFO departure announced amid quarterly earnings miss",
                     "EU regulators launching formal investigation into market practices"
                 ],
-                "risk_score": 7.5
+                "risk_score": 7.5,
+                "updated_at": "2023-10-01T12:00:00Z",
             }
         }
+
+
+class QuantRiskMetrics(BaseModel):
+    volatility_score: Optional[float] = None
+    beta_score: Optional[float] = None
+    rsi_risk: Optional[float] = None
+    volume_risk: Optional[float] = None
+    debt_risk: Optional[float] = None
+    eps_risk: Optional[float] = None
+    quant_risk_score: Optional[float] = None
+
+
+class QuantRiskResponse(BaseModel):
+    volatility: Optional[float] = None
+    beta: Optional[float] = None
+    rsi: Optional[float] = None
+    volume_change_percent: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    risk_metrics: QuantRiskMetrics
+    risk_label: Optional[str] = None  # This is StabilityLabel in original
+    risk_explanation: Optional[str] = None
+    error_details: Optional[str] = None
+    error: Optional[str] = None
+
+
+class EsgRiskResponse(BaseModel):
+    total_esg: Optional[float] = None
+    environmental_score: Optional[float] = None
+    social_score: Optional[float] = None
+    governance_score: Optional[float] = None
+    esg_risk_score: Optional[float] = None
+
+
+class AnomalyFlag(BaseModel):
+    type: Optional[str] = None
+    date: Optional[str] = None
+    description: Optional[str] = None
+    severity: Optional[float] = None
+
+
+class AnomalyDetectionResponse(BaseModel):
+    flags: Optional[List[AnomalyFlag]] = None
+    anomaly_score: Optional[float] = Field(None, description="Range: 0 to 10")
+
+
+class NewsArticle(BaseModel):
+    # Note: The NewsArticle structure wasn't included in your provided interfaces
+    # I'm creating a placeholder - you'll need to update this with the actual fields
+    title: Optional[str] = None
+    url: Optional[str] = None
+    date: Optional[str] = None
+    source: Optional[str] = None
+    content: Optional[str] = None
+
+
+class RiskComponent(BaseModel):
+    weight: Optional[float] = None
+    score: Optional[float] = Field(None, description="Range: 0 to 10")
+
+
+class OverallRiskComponents(BaseModel):
+    news_sentiment: Optional[RiskComponent] = None
+    quant_risk: Optional[RiskComponent] = None
+    esg_risk: Optional[RiskComponent] = None
+    anomaly_detection: Optional[RiskComponent] = None
+
+
+class OverallRiskResponse(BaseModel):
+    overall_risk_score: Optional[float] = Field(None, description="Range: 0 to 10")
+    risk_level: Optional[Literal["Low", "Medium", "High"]] = None
+    components: Optional[OverallRiskComponents] = None
+
+
+class StreamResponse(BaseModel):
+    type: Literal["news_articles", "news_sentiment", "quantitative_risk",
+    "esg_risk", "anomaly_risk", "overall_risk", "complete"]
+    data: Optional[Union[OverallRiskResponse, NewsArticle, SentimentAnalysisResponse,
+    QuantRiskResponse, EsgRiskResponse, AnomalyDetectionResponse]] = None

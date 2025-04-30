@@ -14,7 +14,7 @@ from models import UserModel
 from classes.User import UserLogin, LoginResponse, UpdatePassword, UserRegistration, RegistrationResponse
 from models.models import AccessLevel
 
-router = APIRouter(prefix='/auth')
+router = APIRouter(prefix='/auth', tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)

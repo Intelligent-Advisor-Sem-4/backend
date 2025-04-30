@@ -7,7 +7,6 @@ class RelatedArticle(BaseModel):
     title: str
     url: str
     content_type: Optional[str] = None
-    thumbnail_url: Optional[str] = None
     provider_name: Optional[str] = None
 
 
