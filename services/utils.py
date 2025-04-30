@@ -17,7 +17,7 @@ def parse_news_article(article: dict) -> NewsArticle:
     thumbnail_data = content.get("thumbnail")
     resolutions = thumbnail_data.get("resolutions", []) if thumbnail_data is not None else []
 
-    print("Parsing news article:", content.get("title"))
+    logger.debug("Parsing news article: %s", content.get("title"))
 
     if resolutions:
         # Find the smallest thumbnail by area (width × height)
