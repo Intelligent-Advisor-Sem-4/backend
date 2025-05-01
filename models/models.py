@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, JSON, Date, ForeignKey, Numeric, BigInteger, \
     Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
@@ -30,13 +30,6 @@ class AssetStatus(enum.Enum):
     BLACKLIST = "BlackList"  # Hidden from everything
 
 
-class AssetType(enum.Enum):
-    STOCK = "Stock"
-    GOLD = "Gold"
-    BOND = "Bond"
-    CRYPTO = "Crypto"
-
-
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -53,20 +46,7 @@ class UserModel(Base):
 
 
 class Stock(Base):
-    """Model representing a tradable financial asset (stock, crypto, etc.)
-
-    Attributes:
-        stock_id: Primary key for the stock.
-        ticker_symbol: Ticker symbol used in yfinance or other financial APIs (e.g., AAPL, BTC-USD).
-        asset_name: Human-readable name of the asset (e.g., 'Apple Inc.', 'Bitcoin').
-        currency: Currency in which the asset is traded.
-        status: Current lifecycle status of the asset.
-        type: Class/category of the asset (e.g., Stock, Crypto, Bond).
-        first_data_point_date: Date of the earliest available historical data.
-        last_data_point_date: Date of the most recent available historical data.
-        historical_prices: One-to-many relationship with historical price data.
-        prediction_models: One-to-many relationship with trained prediction models.
-    """
+    """Model representing a tradable financial asset (stock, crypto, etc.)"""
 
     __tablename__ = "stocks"
 
@@ -74,17 +54,30 @@ class Stock(Base):
     ticker_symbol = Column(String(20), unique=True, nullable=False)
     asset_name = Column(String(255))
     currency = Column(String(10), default="USD")
+    exchange = Column(String(50), nullable=True)  # Made optional
+    sectorKey = Column(String(50), nullable=True)  # Made optional
+    sectorDisp = Column(String(50), nullable=True)  # Made optional
+    industryKey = Column(String(50), nullable=True)  # Made optional
+    industryDisp = Column(String(50), nullable=True)  # Made optional
+    timezone = Column(String(50), nullable=True)  # Made optional
     status = Column(Enum(AssetStatus), nullable=False, default=AssetStatus.PENDING)
-    type = Column(Enum(AssetType), nullable=False)
-    first_data_point_date = Column(Date)
-    last_data_point_date = Column(Date)
+    type = Column(String(50), nullable=True)  # Made optional
+    first_data_point_date = Column(Date, nullable=True)
+    last_data_point_date = Column(Date, nullable=True)
+    risk_score = Column(Numeric(10, 2), nullable=True)
+    risk_score_updated = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # --- Relationships ---
     historical_prices = relationship("StockPriceHistorical", back_populates="stock", cascade="all, delete-orphan")
     prediction_models = relationship("PredictionModel", back_populates="target_stock")
+    news_risk_analysis = relationship("NewsRiskAnalysis", back_populates="stock", cascade="all, delete-orphan")
+    quantitative_risk_analysis = relationship("QuantitativeRiskAnalysis", back_populates="stock",
+                                              cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type.name}')>"
+        return f"<Stock(stock_id={self.stock_id}, ticker_symbol='{self.ticker_symbol}', type='{self.type}')>"
 
 
 class StockPriceHistorical(Base):
@@ -168,3 +161,41 @@ class ExplainabilityReport(Base):
     report_data = Column(JSON)  # Stores SHAP values, LIME explanations, etc.
     generated_at = Column(DateTime, default=datetime.utcnow)
     explanation_type = Column(String)  # e.g., "SHAP", "LIME", "Gemini"
+
+
+class NewsRiskAnalysis(Base):
+    __tablename__ = "news_risk_analysis"
+
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
+
+    response_json = Column(JSON, nullable=True)
+    stability_score = Column(Numeric(10, 2), nullable=True)
+    stability_label = Column(String(50), nullable=True)
+    customer_suitability = Column(String(50), nullable=True)
+    suggested_action = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    risk_score = Column(Numeric(10, 2), nullable=True)
+
+    stock = relationship("Stock", back_populates="news_risk_analysis")
+
+
+class QuantitativeRiskAnalysis(Base):
+    __tablename__ = "quantitative_risk_analysis"
+
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    volatility = Column(Numeric(10, 4), nullable=True)
+    beta = Column(Numeric(10, 4), nullable=True)
+    rsi = Column(Numeric(10, 4), nullable=True)
+    volume_change = Column(Numeric(10, 4), nullable=True)
+    debt_to_equity = Column(Numeric(10, 4), nullable=True)
+    eps = Column(Numeric(10, 4), nullable=True)
+    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+    stock = relationship("Stock", back_populates="quantitative_risk_analysis")
+
+    def __repr__(self):
+        return f"<QuantitativeRiskAnalysis(analysis_id={self.analysis_id}, volatility={self.volatility})>"

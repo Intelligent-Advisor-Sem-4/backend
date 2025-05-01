@@ -109,3 +109,13 @@ def reset_database():
     create_tables()
     seed_database()
     print("Database reset successfully.")
+
+
+if __name__ == "__main__":
+    # Uncomment the following line to reset the database
+    reset_database()
+    # Uncomment the following line to create tables
+    # create_tables()
+    # Uncomment the following line to drop tables
+    # drop_tables()
+    pass

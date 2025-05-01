@@ -15,5 +15,9 @@ def ping():
 
 @router.post("/optimize_portfolio", status_code=status.HTTP_200_OK)
 async def optimize_portfolio(request: Input):
-    # return {"msg": "Portfolio optimized!"}
-    return build_portfolio_response(request)
+
+    try:
+        return build_portfolio_response(request)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

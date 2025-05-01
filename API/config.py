@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from db.dbConnect import create_tables, reset_database, seed_database  # Import your create_tables function properly
 
-router = APIRouter(prefix='/config')
+router = APIRouter(prefix='/config', tags=["config"])
 
 
 @router.post('/create-tables')
