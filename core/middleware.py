@@ -18,8 +18,8 @@ ALGORITHM = "HS256"
 # Middleware to verify token from either cookies or Authorization header
 async def token_verification_middleware(request: Request, call_next):
     # Allow public routes
-    open_routes = ["/auth", "/openapi.json", "/auth/user/reg", "/auth/login"]
-    if any(request.url.path.startswith(route) for route in open_routes):
+    open_routes = ["/auth", "/openapi.json", "/auth/user/reg", "/auth/login", "/docs"]
+    if request.url.path == "/" or any(request.url.path.startswith(route) for route in open_routes):
         return await call_next(request)
 
     token = None

@@ -4,19 +4,19 @@ from fastapi import APIRouter, HTTPException, Query, Depends, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from classes.Asset import Asset, AssetFastInfo
-from classes.Stock import StockResponse
-from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, ScreenerRequest
+from classes.Asset import Asset, AssetFastInfo, StockResponse
+from classes.Stock import CreateStockResponse
+from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal
 from core.middleware import logger
 from db.dbConnect import get_db
 from models.models import AssetStatus
 from services.asset_screening import run_stock_screen
 from services.asset_management import create_stock, get_asset_by_ticker, get_asset_by_ticker_fast, update_stock_status, \
-    delete_stock
+    delete_stock, get_db_stocks as get_db_stocks_function, get_db_stock_count
 from classes.Search import SearchResult
 from services.asset_search import yfinance_search
 
-router = APIRouter(prefix='/assets')
+router = APIRouter(prefix='/assets', tags=["asset-management"])
 
 
 @router.get("/screen/{screen_type}", response_model=Union[Dict[str, Any], ScreenerResponseMinimal],
@@ -62,7 +62,7 @@ async def get_screener_types():
     return [t.value for t in ScreenerType]
 
 
-@router.post('/create-stock', response_model=StockResponse, status_code=status.HTTP_201_CREATED)
+@router.post('/create-stock', response_model=CreateStockResponse, status_code=status.HTTP_201_CREATED)
 def api_create_stock(ticker: str, db: Session = Depends(get_db)):
     """
     Create a new stock entry in the database.
@@ -79,7 +79,7 @@ def api_create_stock(ticker: str, db: Session = Depends(get_db)):
     """
     try:
         stock = create_stock(db, ticker)
-        return StockResponse(
+        return CreateStockResponse(
             stock_id=stock.stock_id,
             ticker_symbol=stock.ticker_symbol,
             asset_name=stock.asset_name,
@@ -237,7 +237,7 @@ async def update_status(
     Update the status of a stock by ID
     """
     try:
-        stock = update_stock_status(db, stock_id=stock_id, new_status=status_update.status)
+        update_stock_status(db, stock_id=stock_id, new_status=status_update.status)
 
         return {
             "message": f"Stock {stock_id} status updated to {status_update.status.value}"
@@ -280,3 +280,42 @@ async def delete_stock_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete stock: {str(e)}"
         )
+
+
+@router.get("/db/stocks", response_model=List[StockResponse])
+async def get_db_stocks(
+        offset: int = Query(0, ge=0, description="The starting position in results"),
+        limit: int = Query(10, gt=0, le=100, description="Number of results to return (max 100)"),
+        db: Session = Depends(get_db)
+):
+    """
+    Get stocks from the database with pagination
+
+    Query Parameters:
+    - offset: Starting position for pagination
+    - limit: Number of results to return (max 100)
+    """
+    try:
+        stocks = get_db_stocks_function(db=db, offset=offset, limit=limit)
+        return stocks
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+class CountResponse(BaseModel):
+    count: int
+
+@router.get("/db/stocks/count", response_model=CountResponse)
+async def get_db_stocks_count(
+        db: Session = Depends(get_db)
+):
+    """
+    Get the total count of stocks in the database
+    """
+    try:
+        count = get_db_stock_count(db=db)
+        return {
+            "count": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

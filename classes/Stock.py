@@ -1,7 +1,7 @@
 from openai import BaseModel
 
 
-class StockResponse(BaseModel):
+class CreateStockResponse(BaseModel):
     stock_id: int
     ticker_symbol: str
     asset_name: str

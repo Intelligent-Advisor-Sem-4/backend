@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Any, Dict
+from decimal import Decimal
 import numpy as np
 from sqlalchemy.orm import Session
+from core.middleware import logger
 
-from classes.Sentiment import SentimentAnalysisResponse, KeyRisks
+from classes.Risk_Components import SentimentAnalysisResponse, KeyRisks
 from classes.News import NewsArticle, RelatedArticle
 from models.models import Stock
 
@@ -12,8 +13,11 @@ def parse_news_article(article: dict) -> NewsArticle:
     content = article.get("content", {})
     provider = content.get("provider", {})
     canonical_url = content.get("canonicalUrl", {}).get("url", "")
-    thumbnail_data = content.get("thumbnail", {})
-    resolutions = thumbnail_data.get("resolutions", [])
+    # Get thumbnail data safely
+    thumbnail_data = content.get("thumbnail")
+    resolutions = thumbnail_data.get("resolutions", []) if thumbnail_data is not None else []
+
+    logger.debug("Parsing news article: %s", content.get("title"))
 
     if resolutions:
         # Find the smallest thumbnail by area (width × height)
@@ -42,11 +46,11 @@ def parse_news_article(article: dict) -> NewsArticle:
 
     for item in storyline_items:
         sub = item["content"]
+        print('Sub item:', sub.get("title", ""))
         news.related_articles.append(RelatedArticle(
             title=sub.get("title"),
             url=sub.get("canonicalUrl", {}).get("url", ""),
             content_type=sub.get("contentType"),
-            thumbnail_url=sub.get("thumbnail", {}).get("url", ""),
             provider_name=sub.get("provider", {}).get("displayName")
         ))
 
@@ -78,16 +82,23 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, 
     # Non-linear EPS risk scoring
     eps_risk = 5  # Default neutral score if EPS is None
     if eps is not None:
-        if eps < 0:
+        # Convert Decimal to float if needed
+        eps_value = float(eps) if isinstance(eps, Decimal) else eps
+
+        if eps_value < 0:
             # Negative EPS = higher risk (non-linear: more negative = exponentially higher risk)
-            eps_risk = min(10.0, 7.0 + min(3.0, abs(eps) / 2))  # 7-10 range for negative EPS
+            eps_risk = min(10.0, 7.0 + min(3.0, abs(eps_value) / 2))  # 7-10 range for negative EPS
         else:
             # Positive EPS = lower risk (non-linear: diminishing returns for very high EPS)
-            eps_risk = max(0.0, 5.0 - min(5.0, np.sqrt(eps)))  # 0-5 range for positive EPS
+            eps_risk = max(0.0, 5.0 - min(5.0, np.sqrt(eps_value)))  # 0-5 range for positive EPS
 
     # Combine into overall quantitative risk score
-    quant_risk_score = np.mean(
-        [x for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk, eps_risk] if x is not None])
+    # Convert any Decimal values to float before calculating mean
+    quant_risk_score = np.mean([
+        float(x) if isinstance(x, Decimal) else x
+        for x in [volatility_score, beta_score, rsi_risk, volume_score, debt_risk, eps_risk]
+        if x is not None
+    ])
 
     return {
         "volatility_score": float(volatility_score),
@@ -141,6 +152,7 @@ def parse_gemini_json_response(response_text: str) -> dict:
 
     # Clean up the response text
     response_text = response_text.strip()
+    print("Parsing response text:", response_text)
 
     # Remove markdown code block formatting if present
     if response_text.startswith('```json'):
@@ -174,7 +186,8 @@ default_sentiment = SentimentAnalysisResponse(
     suggested_action="Monitor",
     risk_rationale=["No recent news available for analysis."],
     news_highlights=[],
-    risk_score=5
+    risk_score=5,
+    updated_at=datetime.now().isoformat(),
 )
 
 
@@ -184,109 +197,6 @@ def get_stock_by_ticker(db: Session, ticker: str) -> Stock | None:
         print(f"Stock with symbol '{ticker}' not found in database")
         return None
     return stock
-
-
-def calculate_shallow_risk(s):
-    """
-    Calculate risk level for a stock based on available financial metrics.
-    Handles missing data gracefully and provides a risk assessment
-    based on multiple factors.
-
-    Args:
-        s (dict): Stock quote data containing financial metrics
-
-    Returns:
-        tuple: (str, float) containing:
-            - Risk level: "High", "Medium", or "Low"
-            - Risk score: Float between 0-10, where 10 is highest risk
-    """
-    # Initialize risk points system
-    risk_points = 0
-    metrics_used = 0
-    max_points_per_metric = 3  # Maximum points per metric for normalization
-
-    # --- Market Cap (size risk) ---
-    market_cap = s.get("marketCap")
-    if market_cap is not None:
-        metrics_used += 1
-        if market_cap < 1e9:  # Small cap (below $1B)
-            risk_points += 3
-        elif market_cap < 10e9:  # Mid cap ($1B-$10B)
-            risk_points += 1
-
-    # --- Volatility risk ---
-    high = s.get("fiftyTwoWeekHigh")
-    low = s.get("fiftyTwoWeekLow")
-    if high is not None and low is not None and low > 0:
-        metrics_used += 1
-        # Calculate volatility as percentage between high and low
-        volatility = ((high - low) / low) * 100
-        if volatility > 70:
-            risk_points += 3
-        elif volatility > 40:
-            risk_points += 2
-        elif volatility > 20:
-            risk_points += 1
-
-    # --- PE ratio (valuation risk) ---
-    pe = s.get("forwardPE") or s.get("trailingPE")
-    if pe is not None:
-        metrics_used += 1
-        if pe < 0:  # Negative earnings
-            risk_points += 3
-        elif pe > 50:  # Very high PE
-            risk_points += 2
-        elif pe > 30:  # High PE
-            risk_points += 1
-
-    # --- EPS (earnings risk) ---
-    eps = s.get("epsTrailingTwelveMonths") or s.get("epsCurrentYear") or s.get("epsForward")
-    if eps is not None:
-        metrics_used += 1
-        if eps < 0:  # Negative earnings
-            risk_points += 3
-        elif eps < 1 and market_cap and market_cap > 1e9:  # Low earnings for larger companies
-            risk_points += 2
-
-    # --- Debt (if available) ---
-    debt_to_equity = s.get("debtToEquity")
-    if debt_to_equity is not None:
-        metrics_used += 1
-        if debt_to_equity > 200:  # Very high debt
-            risk_points += 3
-        elif debt_to_equity > 100:  # High debt
-            risk_points += 2
-        elif debt_to_equity > 50:  # Moderate debt
-            risk_points += 1
-
-    # --- Beta (market correlation risk) ---
-    beta = s.get("beta")
-    if beta is not None:
-        metrics_used += 1
-        if abs(beta) > 2:  # Very volatile compared to market
-            risk_points += 2
-        elif abs(beta) > 1.5:  # More volatile than market
-            risk_points += 1
-
-    # Calculate risk score on a 0-10 scale
-    if metrics_used == 0:
-        # No metrics available, return a middle-range risk score
-        risk_score = 5.0
-    else:
-        # Maximum possible points is metrics_used * max_points_per_metric
-        max_possible_points = metrics_used * max_points_per_metric
-        # Convert to 0-10 scale
-        risk_score = (risk_points / max_possible_points) * 10
-
-    # Adjust for limited data
-    if metrics_used < 2:
-        # With limited data, err on the side of caution
-        risk_score = max(risk_score, 4.0)  # Minimum score of 4 with limited data
-
-    risk_score = round(risk_score, 2)
-
-    # Determine risk level based on the 0-10 risk score
-    return risk_score
 
 
 def calculate_shallow_risk_score(
@@ -393,3 +303,25 @@ def calculate_shallow_risk_score(
         risk_score = max(risk_score, 4.0)  # Minimum score of 4 with limited data
 
     return round(risk_score, 2)  # Round to two decimal places
+
+
+def calculate_shallow_risk(s):
+    """
+    Calculate risk level for a stock based on available financial metrics.
+    Uses calculate_shallow_risk_score for the actual calculation.
+
+    Args:
+        s (dict): Stock quote data containing financial metrics
+
+    Returns:
+        float: Risk score between 0-10, where 10 is highest risk
+    """
+    return calculate_shallow_risk_score(
+        market_cap=s.get("marketCap"),
+        high=s.get("fiftyTwoWeekHigh"),
+        low=s.get("fiftyTwoWeekLow"),
+        pe_ratio=s.get("forwardPE") or s.get("trailingPE"),
+        eps=s.get("epsTrailingTwelveMonths") or s.get("epsCurrentYear") or s.get("epsForward"),
+        debt_to_equity=s.get("debtToEquity"),
+        beta=s.get("beta")
+    )

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from API import user, prediction, profile, config, assets, budget
+from API import user, prediction, profile, config, assets, risk_analyser, budget
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.middleware("http")(token_verification_middleware)
+app.middleware("http")(token_verification_middleware)
 
 app.include_router(user.router)
 app.include_router(prediction.router)
@@ -23,6 +23,7 @@ app.include_router(config.router)
 app.include_router(profile.router)
 app.include_router(assets.router)
 app.include_router(budget.router)
+app.include_router(risk_analyser.router)
 
 @app.get("/")
 def welcome():

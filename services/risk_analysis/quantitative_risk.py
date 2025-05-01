@@ -1,6 +1,7 @@
+import decimal
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict
 
 import numpy as np
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from yfinance import Ticker
 
 from models.models import QuantitativeRiskAnalysis
 from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_gemini_json_response
+from classes.Risk_Components import QuantRiskResponse, QuantRiskMetrics
 
 
 class QuantitativeRiskService:
@@ -56,15 +58,15 @@ class QuantitativeRiskService:
 
             # Prepare the prompt for Gemini
             prompt = f"""
-            As a financial risk analyst for a platform that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
+           As a financial risk and compliance analyst for a stock screening platform, that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
 
             - Volatility: {volatility:.2f}% (annualized)
             - Beta: {beta_str}
             - RSI: {rsi:.2f}
             - Recent Volume Change: {volume_change:.2f}%
             - Debt-to-Equity Ratio: {debt_str}
-            - Earnings Per Share (EPS): {eps_str}
             - Overall Risk Score: {quant_risk_score:.2f}/10
+            - EPS: {eps_str}
 
             Our mission is NOT to advise on investments but to identify and flag potentially risky assets that could harm retail investors.
 
@@ -76,7 +78,7 @@ class QuantitativeRiskService:
             """
 
             # Call the Gemini API
-            response = self.gemini_client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+            response = self.gemini_client.models.generate_content(model='gemini-2.0-flash-lite', contents=prompt)
             response_text = response.text
 
             # Parse the JSON response using the common utility function
@@ -120,13 +122,13 @@ class QuantitativeRiskService:
 
             if existing_analysis:
                 print("Updating existing report")
-                # Update existing record
-                existing_analysis.volatility = volatility
-                existing_analysis.beta = beta
-                existing_analysis.rsi = rsi
-                existing_analysis.volume_change = volume_change
-                existing_analysis.debt_to_equity = debt_to_equity
-                existing_analysis.updated_at = datetime.utcnow()
+                # Update existing record - convert NumPy types to Python native types
+                existing_analysis.volatility = float(volatility) if volatility is not None else None
+                existing_analysis.beta = float(beta) if beta is not None else None
+                existing_analysis.rsi = float(rsi) if rsi is not None else None
+                existing_analysis.volume_change = float(volume_change) if volume_change is not None else None
+                existing_analysis.debt_to_equity = float(debt_to_equity) if debt_to_equity is not None else None
+                existing_analysis.updated_at = datetime.now()
             else:
                 # Create new record
                 print("Creating new report")
@@ -137,9 +139,9 @@ class QuantitativeRiskService:
                     volume_change=to_python_type(volume_change),
                     debt_to_equity=to_python_type(debt_to_equity),
                     stock_id=self.stock.stock_id,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
-                    eps=eps,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now(),
+                    eps=to_python_type(eps),
                 )
                 self.db.add(quantitative_analysis)
 
@@ -148,7 +150,7 @@ class QuantitativeRiskService:
             self.db.rollback()
             print(f"[Database Error] Failed to store quantitative risk analysis: {e}")
 
-    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """Calculate key quantitative risk metrics"""
         print('Calculating quantitative metrics')
         end_date = datetime.now()
@@ -191,9 +193,9 @@ class QuantitativeRiskService:
                 beta = None
 
             # Check for EPS in info dictionary
-            eps = info.get('trailingEPS')  # Most commonly available EPS metric
+            eps = info.get('trailingEps')  # Most commonly available EPS metric
             if eps is None:
-                eps = info.get('forwardEPS')  # Alternative if trailing EPS not available
+                eps = info.get('forwardEps')  # Alternative if trailing EPS not available
 
             # 3. RSI (Relative Strength Index)
             delta = hist['Close'].diff().dropna()
@@ -250,28 +252,40 @@ class QuantitativeRiskService:
                 use_gemini=use_gemini
             )
 
-            # Return the complete results
-            return {
-                "volatility": volatility,
-                "beta": beta,
-                "rsi": rsi,
-                "volume_change_percent": volume_change,
-                "debt_to_equity": debt_to_equity,
-                "risk_metrics": risk_scores,
-                "risk_label": risk_analysis["risk_label"],
-                "risk_explanation": risk_analysis["explanation"]
-            }
+            # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
+            risk_metrics = QuantRiskMetrics(
+                volatility_score=risk_scores.get("volatility_score"),
+                beta_score=risk_scores.get("beta_score"),
+                rsi_risk=risk_scores.get("rsi_risk"),
+                volume_risk=risk_scores.get("volume_risk"),
+                debt_risk=risk_scores.get("debt_risk"),
+                eps_risk=risk_scores.get("eps_risk"),
+                quant_risk_score=risk_scores.get("quant_risk_score")
+            )
+
+            # Return the complete results as a Pydantic model
+            return QuantRiskResponse(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change_percent=volume_change,
+                debt_to_equity=debt_to_equity,
+                risk_metrics=risk_metrics,
+                risk_label=risk_analysis["risk_label"],
+                risk_explanation=risk_analysis["explanation"]
+            )
         except Exception as e:
             print(f"Error calculating quantitative metrics: {e}")
-            return {
-                "error": str(e),
-                "risk_metrics": {
-                    "quant_risk_score": 5  # Neutral score on error
-                },
-                "risk_explanation": "Unable to calculate risk metrics due to an error."
-            }
+            # Return error response as a Pydantic model
+            return QuantRiskResponse(
+                error=str(e),
+                risk_metrics=QuantRiskMetrics(
+                    quant_risk_score=5  # Neutral score on error
+                ),
+                risk_explanation="Unable to calculate risk metrics due to an error."
+            )
 
-    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
         print("Get quantitative metrics")
 
@@ -282,38 +296,79 @@ class QuantitativeRiskService:
 
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
-        if quantitative_analysis and quantitative_analysis.created_at > datetime.utcnow() - timedelta(days=2):
+        if quantitative_analysis and quantitative_analysis.updated_at > datetime.now() - timedelta(days=1):
             print("Existing metric exists")
+
+            # Handle NaN values in beta and other fields
+            beta = None
+            try:
+                if quantitative_analysis.beta is not None:
+                    # Check if beta is NaN (works for both Decimal and float)
+                    if str(quantitative_analysis.beta).lower() == 'nan':
+                        beta = None
+                    else:
+                        beta = float(quantitative_analysis.beta)
+            except (ValueError, decimal.InvalidOperation):
+                beta = None
+
+            # Similar handling for other potentially problematic fields
+            volatility = float(
+                quantitative_analysis.volatility) if quantitative_analysis.volatility is not None and str(
+                quantitative_analysis.volatility).lower() != 'nan' else None
+            rsi = float(quantitative_analysis.rsi) if quantitative_analysis.rsi is not None and str(
+                quantitative_analysis.rsi).lower() != 'nan' else None
+            volume_change = float(
+                quantitative_analysis.volume_change) if quantitative_analysis.volume_change is not None and str(
+                quantitative_analysis.volume_change).lower() != 'nan' else None
+            debt_to_equity = float(
+                quantitative_analysis.debt_to_equity) if quantitative_analysis.debt_to_equity is not None and str(
+                quantitative_analysis.debt_to_equity).lower() != 'nan' else None
+            eps = float(quantitative_analysis.eps) if quantitative_analysis.eps is not None and str(
+                quantitative_analysis.eps).lower() != 'nan' else None
+
             risk_scores = calculate_risk_scores(
-                volatility=quantitative_analysis.volatility,
-                beta=quantitative_analysis.beta,
-                rsi=quantitative_analysis.rsi,
-                volume_change=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
+                eps=eps
             )
 
             # Generate AI explanation
             risk_analysis = self._generate_quantitative_risk_explanation(
                 ticker=self.ticker,
-                volatility=quantitative_analysis.volatility,
-                beta=quantitative_analysis.beta,
-                rsi=quantitative_analysis.rsi,
-                volume_change=quantitative_analysis.volume_change,
-                debt_to_equity=quantitative_analysis.debt_to_equity,
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
                 quant_risk_score=risk_scores["quant_risk_score"],
                 use_gemini=use_gemini
             )
 
-            return {
-                "volatility": quantitative_analysis.volatility,
-                "beta": quantitative_analysis.beta,
-                "rsi": quantitative_analysis.rsi,
-                "volume_change_percent": quantitative_analysis.volume_change,
-                "debt_to_equity": quantitative_analysis.debt_to_equity,
-                "risk_metrics": risk_scores,
-                "risk_label": risk_analysis["risk_label"],
-                "risk_explanation": risk_analysis["explanation"]
-            }
+            # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
+            risk_metrics = QuantRiskMetrics(
+                volatility_score=risk_scores.get("volatility_score"),
+                beta_score=risk_scores.get("beta_score"),
+                rsi_risk=risk_scores.get("rsi_risk"),
+                volume_risk=risk_scores.get("volume_risk"),
+                debt_risk=risk_scores.get("debt_risk"),
+                eps_risk=risk_scores.get("eps_risk"),
+                quant_risk_score=risk_scores.get("quant_risk_score")
+            )
+
+            # Return the results as a Pydantic model
+            return QuantRiskResponse(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                volume_change_percent=volume_change,
+                debt_to_equity=debt_to_equity,
+                risk_metrics=risk_metrics,
+                risk_label=risk_analysis["risk_label"],
+                risk_explanation=risk_analysis["explanation"]
+            )
 
         # If no recent analysis exists, calculate new metrics
         print("No recent analysis found, calculating new metrics")

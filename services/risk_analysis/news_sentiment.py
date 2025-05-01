@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from yfinance import Ticker
 
-from classes.Sentiment import SentimentAnalysisResponse
+from classes.Risk_Components import SentimentAnalysisResponse
 from models.models import NewsRiskAnalysis
 from services.utils import parse_news_article, default_sentiment, get_stock_by_ticker, parse_gemini_json_response
 from classes.News import NewsArticle
@@ -66,7 +66,8 @@ class NewsSentimentService:
             "suggested_action": "Monitor",
             "risk_rationale": ["No recent news available for analysis."],
             "news_highlights": [],
-            "risk_score": 0
+            "risk_score": 0,
+            "updated_at": datetime.now(),
         }
 
         if not articles:
@@ -92,7 +93,7 @@ class NewsSentimentService:
                 prompt = self._create_sentiment_prompt(news_text)
                 # Get response from Gemini
                 print('Generating sentiment analysis with Gemini')
-                sentiment_response = self.gemini_client.models.generate_content(model='gemini-2.0-flash',
+                sentiment_response = self.gemini_client.models.generate_content(model='gemini-1.5-flash',
                                                                                 contents=prompt)
                 sentiment_data = parse_gemini_response(sentiment_response)
 
@@ -121,7 +122,7 @@ class NewsSentimentService:
         print('Validating and storing sentiment data')
         try:
             # Parse the data through the Pydantic model for validation
-            sentiment_model = SentimentAnalysisResponse(**sentiment_data)
+            sentiment_model = SentimentAnalysisResponse(**sentiment_data, updated_at=str(datetime.now()))
 
             if not self.stock:
                 print("No stock in database to store")
@@ -137,7 +138,7 @@ class NewsSentimentService:
 
                     # Always update these fields
                     existing_analysis.response_json = sentiment_model.model_dump()
-                    existing_analysis.updated_at = datetime.utcnow()
+                    existing_analysis.updated_at = datetime.now()
                 else:
                     # Create new record
                     news_analysis = NewsRiskAnalysis(
@@ -148,8 +149,8 @@ class NewsSentimentService:
                         customer_suitability=sentiment_model.customer_suitability,
                         suggested_action=sentiment_model.suggested_action,
                         risk_score=sentiment_model.risk_score,
-                        created_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow()
+                        created_at=datetime.now(),
+                        updated_at=datetime.now()
                     )
                     self.db.add(news_analysis)
 
@@ -189,7 +190,7 @@ class NewsSentimentService:
                 existing_analysis.stability_label = fallback_model.stability_label
                 existing_analysis.customer_suitability = fallback_model.customer_suitability
                 existing_analysis.suggested_action = fallback_model.suggested_action
-                existing_analysis.updated_at = datetime.utcnow()
+                existing_analysis.updated_at = datetime.now()
                 existing_analysis.risk_score = fallback_model.risk_score
             else:
                 news_analysis = NewsRiskAnalysis(
@@ -200,8 +201,8 @@ class NewsSentimentService:
                     customer_suitability=fallback_model.customer_suitability,
                     suggested_action=fallback_model.suggested_action,
                     risk_score=fallback_model.risk_score,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
                 )
                 self.db.add(news_analysis)
 
@@ -244,13 +245,13 @@ class NewsSentimentService:
 
         1. **stability_score** (numeric): A score from -10 (extremely unstable/high risk) to +10 (extremely stable/secure)
         2. **stability_label** (string): One of ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-        3. **key_risks** (object): Key risk factors identified, categorized as:
-           - legal_risks (lawsuits, investigations, compliance failures)
-           - governance_risks (executive exits, board conflicts, control disputes)
-           - fraud_indicators (misstatements, shell entities, shady transactions)
-           - political_exposure (foreign influence, sanctions, subsidies, regulations)
-           - operational_risks (supply disruptions, recalls, safety breaches)
-           - financial_stability_issues (high leverage, poor liquidity, debt covenant stress)
+        3. **key_risks** (object): Key risk factors identified, with each category containing an ARRAY OF STRINGS:
+           - legal_risks: Array of strings describing lawsuits, investigations, compliance failures
+           - governance_risks: Array of strings describing executive exits, board conflicts, control disputes
+           - fraud_indicators: Array of strings describing misstatements, shell entities, shady transactions
+           - political_exposure: Array of strings describing foreign influence, sanctions, subsidies, regulations
+           - operational_risks: Array of strings describing supply disruptions, recalls, safety breaches
+           - financial_stability_issues: Array of strings describing high leverage, poor liquidity, debt covenant stress
         4. **security_assessment** (string, max 150 words): Objective summary of potential threats to investor security and financial exposure.
         5. **customer_suitability** (string): One of ["Unsuitable", "Cautious Inclusion", "Suitable"], based on investor protection concerns.
         6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
@@ -294,7 +295,7 @@ class NewsSentimentService:
         news_sentiment = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
         # If no sentiment exists, or it's older than 6 hours, fetch new sentiment
-        if not news_sentiment or news_sentiment.created_at < datetime.utcnow() - timedelta(hours=6):
+        if not news_sentiment or news_sentiment.updated_at < datetime.now() - timedelta(hours=6):
             print("No sentiment found or found older sentiment")
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles, use_gemini=use_gemini)

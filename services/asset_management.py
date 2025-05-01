@@ -1,9 +1,9 @@
-import sys
+from datetime import datetime
 
 import yfinance as yf
 from sqlalchemy.orm import Session
 
-from classes.Asset import Asset, DB_Stock, AssetFastInfo
+from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
 from services.utils import calculate_shallow_risk_score
 
@@ -61,6 +61,38 @@ def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
 
 
+def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
+    stocks = db.query(Stock).offset(offset).limit(limit).all()
+
+    result = []
+    for stock in stocks:
+        # Check if risk_score_updates is older than 1 day
+        if stock.risk_score_updated and (datetime.now() - stock.risk_score_updated).days > 1:
+            t = yf.Ticker(stock.ticker_symbol)
+            info = t.info
+            risk_score = calculate_shallow_risk_score(
+                market_cap=info.get("marketCap"),
+                high=info.get("fiftyTwoWeekHigh"),
+                low=info.get("fiftyTwoWeekLow"),
+                pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
+                eps=info.get("trailingEps"),
+                debt_to_equity=info.get("debtToEquity"),
+                beta=info.get("beta"),
+            )
+
+            stock.risk_score = risk_score
+            stock.risk_score_updated = datetime.now()
+            db.commit()
+
+        # Create response model using SQLAlchemy model instance directly
+        result.append(StockResponse.model_validate(stock))
+    return result
+
+
+def get_db_stock_count(db: Session) -> int:
+    return db.query(Stock).count()
+
+
 def delete_stock(db: Session, stock_id: int) -> None:
     stock = db.query(Stock).filter_by(stock_id=stock_id).first()
     if not stock:
@@ -68,6 +100,18 @@ def delete_stock(db: Session, stock_id: int) -> None:
 
     db.delete(stock)
     db.commit()
+
+
+def update_stock_risk_score(db: Session, stock_id: int, risk_score: float) -> Stock:
+    stock = db.query(Stock).filter_by(stock_id=stock_id).first()
+    if not stock:
+        raise ValueError(f"Stock with ID {stock_id} not found")
+
+    stock.risk_score = risk_score
+    stock.risk_score_updated = datetime.now()
+    db.commit()
+    db.refresh(stock)
+    return stock
 
 
 def get_asset_by_ticker(s: Session, t: str) -> Asset:
@@ -163,10 +207,10 @@ if __name__ == "__main__":
     # Example usage
     from db.dbConnect import get_db
 
-    db = get_db()
-    session = next(db)
+    db_o = get_db()
+    session = next(db_o)
     try:
         ticker = get_asset_by_ticker(session, "AEXAF")
         print(ticker)
     finally:
-        db.close()
+        db_o.close()
