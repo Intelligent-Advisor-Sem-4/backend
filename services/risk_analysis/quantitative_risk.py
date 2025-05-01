@@ -66,6 +66,7 @@ class QuantitativeRiskService:
             - Recent Volume Change: {volume_change:.2f}%
             - Debt-to-Equity Ratio: {debt_str}
             - Overall Risk Score: {quant_risk_score:.2f}/10
+            - EPS: {eps_str}
 
             Our mission is NOT to advise on investments but to identify and flag potentially risky assets that could harm retail investors.
 
