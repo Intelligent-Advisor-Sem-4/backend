@@ -6,12 +6,8 @@ import os
 
 app = FastAPI()
 
-# Get the frontend URL from environment variable or use a default for development
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
 # Define all allowed origins
 allowed_origins = [
-    FRONTEND_URL,
     "https://production.d3femg7tg1inty.amplifyapp.com"
     # Add any additional frontend domains that need access
     # "https://your-production-app.com",
@@ -23,7 +19,7 @@ app.add_middleware(
     allow_origins=allowed_origins,  # Specific origins instead of wildcard
     allow_credentials=True,  # Allow cookies to be sent
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Specify the methods explicitly
-    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+    allow_headers=['*'],
     expose_headers=["Content-Length"],
     max_age=600,  # Cache preflight requests for 10 minutes
 )
