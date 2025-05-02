@@ -8,7 +8,7 @@ def budget_analyst_agent(transaction_history,client):
     3. Three specific optimization recommendations
     4. Any urgent alerts
 
-    Transaction History:
+    Transaction History: [(id, user name, date, type, reason, category, amount )]
     {transaction_history}
 
     Respond in this JSON format:
