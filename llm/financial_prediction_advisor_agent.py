@@ -1,71 +1,124 @@
 import json
-def prediction_advisor_agent(predictions,client):
-    """Generates actionable advice from budget predictions"""
+
+def prediction_advisor_agent(predictions, client):
+    """Generates actionable advice from budget predictions with robust error handling"""
+    try:
+        # Phase 1: Generate analysis with strict validation
+        analysis = generate_analysis_phase(predictions, client)
+        
+        # Phase 2: Generate recommendation with strict validation
+        recommendation = generate_recommendation_phase(predictions, client)
+        
+        return analysis, recommendation
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing failed: {str(e)}")
+        # Return fallback responses if parsing fails
+        return get_fallback_responses(predictions)
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return get_fallback_responses(predictions)
+
+def generate_analysis_phase(predictions, client):
+    """First phase with stricter prompt and validation"""
     prompt = f"""
-Analyze these financial predictions and provide concise responses (MAX 2 SENTENCES PER SECTION):
+    STRICTLY follow these instructions to analyze financial predictions:
 
-Predictions Data: {predictions}
+    Predictions Data: {json.dumps(predictions)}
 
-Respond in JSON format with these exact keys:
-{{
-    "observations": "Cash flow observation in 2 sentences MAX",
-    "daily_actions": "One actionable step for today in MAX 2 sentences",
-    "weekly_actions": "One weekly action in MAX 2 sentences",
-    "monthly_actions": "One monthly action in MAX 2 sentences",
-    "risks": "Top risk warning in MAX 2 sentences",
-    "long_term_insights": "Key long-term impact in MAX 2 sentences"
-}}
+    Respond ONLY with valid JSON containing these EXACT keys:
+    {{
+        "observations": 2 sentence MAX cash flow observation,
+        "daily_actions": 1 specific action for today in 2 sentences MAX,
+        "weekly_actions": 1 specific weekly action in 2 sentences MAX,
+        "monthly_actions": 1 specific monthly action in 2 sentences MAX,
+        "risks": Top risk warning in 2 sentences MAX,
+        "long_term_insights": Key long-term impact in 2 sentences MAX
+    }}
 
-    Rules:
-    1. Use actionable language ("Do X" not "You might consider Y")
-    2. Prioritize numeric targets in goals
-    3. Omit filler phrases like "based on the data"
-    4. MAke sure to keep the json format properly (Priority HIGH)
-    5. MAX 2 SENTENCES PER SECTION (Priority HIGH)
+    RULES:
+    1. Use direct commands ("Do X" not "Consider Y")
+    2. Include numbers when possible
+    3. No explanations or extra text outside JSON
+    4. Keep ALL responses under 2 sentences
+    5. Ensure JSON is properly terminated
     """
+    
     completion = client.chat.completions.create(
         model="writer/palmyra-fin-70b-32k",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=512,
-        temperature=0.2,  # Slightly higher for creative suggestions
+        temperature=0.1,  # Lower temperature for more predictable output
         response_format={"type": "json_object"}
     )
-    res = completion.choices[0].message.content
-    print(res)
-    res = json.loads(res)
-    print(res)
+    
+    result = completion.choices[0].message.content
+    print("Raw Analysis Output:", result)
+    
+    # Validate JSON structure before returning
+    parsed = json.loads(result)
+    required_keys = {"observations", "daily_actions", "weekly_actions", 
+                    "monthly_actions", "risks", "long_term_insights"}
+    if not required_keys.issubset(parsed.keys()):
+        raise ValueError("Missing required keys in analysis response")
+    
+    return parsed
 
-    prompt = """
-    Generate one budget recommendation based on financial predictions. Respond in strict JSON format only.
-    Analyze these data
-    Predictions Data: """ + str(predictions) + """
-    Generate a JSON structure:
-    {
-            "time_period": "weekly or monthly only",
-            "amount": "positive number with 2 decimal places",
-            "description": "actionable instructions (use 5-6 sentences)"     
+def generate_recommendation_phase(predictions, client):
+    """Second phase with stricter validation"""
+    prompt = f"""
+    Create ONE budget recommendation using this format ONLY:
+    
+    {{
+        "time_period": "weekly|monthly",
+        "amount": 123.45,
+        "description": "Verb-starting 5-8 word instruction"
+    }}
+
+    Data: {json.dumps(predictions)}
+
+    REQUIREMENTS:
+    1. time_period must be exactly "weekly" or "monthly"
+    2. amount must be positive with 2 decimal places
+    3. description must start with a verb (Save, Reduce, etc.)
+    4. No additional text outside the JSON
+    5. JSON must be syntactically perfect
+    """
+    
+    completion = client.chat.completions.create(
+        model="writer/palmyra-fin-70b-32k",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=256,  # Fewer tokens for simpler response
+        temperature=0.1,
+        response_format={"type": "json_object"}
+    )
+    
+    result = completion.choices[0].message.content
+    print("Raw Recommendation Output:", result)
+    
+    # Validate JSON structure before returning
+    parsed = json.loads(result)
+    if not all(k in parsed for k in ["time_period", "amount", "description"]):
+        raise ValueError("Missing required keys in recommendation")
+    if parsed["time_period"] not in ["weekly", "monthly"]:
+        raise ValueError("Invalid time_period value")
+    
+    return parsed
+
+def get_fallback_responses(predictions):
+    """Provides fallback responses when LLM fails"""
+    fallback_analysis = {
+        "observations": "Review your recent financial activity for patterns.",
+        "daily_actions": "Track all expenses today to identify savings opportunities.",
+        "weekly_actions": "Set aside 10% of weekly income for savings.",
+        "monthly_actions": "Review monthly subscriptions and cancel unused services.",
+        "risks": "Unplanned expenses could disrupt your cash flow.",
+        "long_term_insights": "Consistent saving will build financial resilience."
     }
-
-Strict Requirements:
-1. Output must be valid JSON that parses successfully
-2. Exactly one goals - no more, no less
-3. goal must have all 3 fields (time_period, amount, description)
-4. time_period must be either "weekly" or "monthly" exactly
-5. amount must be positive with exactly 2 decimal places (e.g. 250.00)
-6. description must be 5-8 words starting with a verb (e.g. "Save", "Reduce")
-7. No additional text or explanations outside the JSON structure
-8. Field names must be exactly as shown (lowercase, no typos)
-"""
-
-    completion = client.chat.completions.create(
-        model="writer/palmyra-fin-70b-32k",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=512,
-        temperature=0.2,
-        response_format={"type": "json_object"}
-    )
-    res2 = completion.choices[0].message.content
-    print(res2)
-    res2 = json.loads(res2)
-    print(res2)
-    return res,res2
+    
+    fallback_recommendation = {
+        "time_period": "weekly",
+        "amount": 100.00,
+        "description": "Save 10% of weekly income automatically"
+    }
+    
+    return fallback_analysis, fallback_recommendation
