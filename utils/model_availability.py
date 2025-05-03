@@ -1,49 +1,51 @@
 from sqlalchemy.orm import Session
 from models.models import Stock, AssetStatus
+from core.middleware import logger
 
-def is_model_ready_by_symbol(db: Session, stock_identifier: str) -> bool:
+
+def is_model_ready_by_symbol(db_a: Session, stock_identifier: str) -> bool:
     """
     Check if the stock model is ready for prediction.
     
     Args:
-        db: Database session
+        db_a: Database session
         stock_identifier: Stock symbol (str)
         
     Returns:
         bool: True if the model is ready (status is ACTIVE), False otherwise
     """
     try:
-        stock = db.query(Stock).filter(Stock.ticker_symbol == stock_identifier.upper()).first()
-        
+        stock = db_a.query(Stock).filter(Stock.ticker_symbol == stock_identifier.upper()).first()
+
         # Check if stock exists and has status ACTIVE
         if stock and stock.status == AssetStatus.ACTIVE:
             return True
         return False
-    
+
     except Exception as e:
         logger.error(f"Error checking model status: {e}")
         return False
-    
 
-def is_model_ready_by_id(db: Session, stock_id: int) -> bool:
+
+def is_model_ready_by_id(db_l: Session, stock_id: int) -> bool:
     """
     Check if the stock model is ready for prediction by stock ID.
     
     Args:
-        db: Database session
+        db_l: Database session
         stock_id: Stock ID (int)
         
     Returns:
         bool: True if the model is ready (status is ACTIVE), False otherwise
     """
     try:
-        stock = db.query(Stock).filter(Stock.stock_id == stock_id).first()
-        
+        stock = db_l.query(Stock).filter(Stock.stock_id == stock_id).first()
+
         # Check if stock exists and has status ACTIVE
         if stock and stock.status == AssetStatus.ACTIVE:
             return True
         return False
-    
+
     except Exception as e:
         logging.error(f"Error checking model status: {e}")
         return False
