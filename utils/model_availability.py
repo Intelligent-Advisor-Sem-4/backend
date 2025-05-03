@@ -21,7 +21,7 @@ def is_model_ready_by_symbol(db: Session, stock_identifier: str) -> bool:
         return False
     
     except Exception as e:
-        print(f"Error checking model status: {e}")
+        logger.error(f"Error checking model status: {e}")
         return False
     
 
