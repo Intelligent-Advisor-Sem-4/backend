@@ -8,10 +8,8 @@ app = FastAPI()
 
 # Define all allowed origins
 allowed_origins = [
-    "https://production.d3femg7tg1inty.amplifyapp.com"
-    # Add any additional frontend domains that need access
-    # "https://your-production-app.com",
-    # "https://staging-app.vercel.app",
+    "https://production.d3femg7tg1inty.amplifyapp.com",
+    "https://intellifinance.shancloudservice.com"
 ]
 
 app.add_middleware(
