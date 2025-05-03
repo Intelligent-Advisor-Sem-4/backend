@@ -45,7 +45,7 @@ def is_model_ready_by_id(db: Session, stock_id: int) -> bool:
         return False
     
     except Exception as e:
-        print(f"Error checking model status: {e}")
+        logging.error(f"Error checking model status: {e}")
         return False
 
 
