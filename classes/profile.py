@@ -1,6 +1,5 @@
 from pydantic import BaseModel
-from typing import List
-
+from typing import List, Optional
 
 class Input(BaseModel):
     tickers: List[str]
@@ -10,3 +9,5 @@ class Input(BaseModel):
     investment_amount: float
     target_amount: float
     years: float
+    risk_score_percent: Optional[float] = None  # NEW: user's quiz risk percent (0-100)
+    use_risk_score: bool = False                # NEW: whether user selects custom risk

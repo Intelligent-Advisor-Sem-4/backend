@@ -1,4 +1,6 @@
 import numpy as np
+import copy
+from fastapi import HTTPException
 from pypfopt.expected_returns import mean_historical_return,capm_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
@@ -19,6 +21,44 @@ def run_markowitz_optimization(price_data, tickers):
     weights = ef.max_sharpe()
     cleaned_weights = ef.clean_weights()
     perf = ef.portfolio_performance(verbose=False)
+    return cleaned_weights, perf, mu, cov
+
+
+def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
+    benchmark_ticker = 'SPY'
+    prices = price_data[tickers]
+    market_prices = price_data['SPY']
+    mu = capm_return(prices, market_prices, risk_free_rate=0.02)
+    cov = sample_cov(prices)
+    
+    ef = EfficientFrontier(mu, cov)
+
+    ef_clone = copy.deepcopy(ef)
+
+    # Compute min volatility
+    ef.min_volatility()
+    _, min_vol, _ = ef.portfolio_performance()
+
+    # Compute max volatility using max Sharpe
+    ef_clone.max_sharpe()
+    _, max_vol, _ = ef_clone.portfolio_performance()
+
+    # Dynamically map user's risk score to volatility
+    target_volatility = min_vol + (risk_score_percent / 100) * (max_vol - min_vol)
+
+    # Safety check: ensure the volatility is still feasible
+    if target_volatility < min_vol or target_volatility > max_vol:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Target volatility {target_volatility:.3f} is outside feasible range ({min_vol:.3f} - {max_vol:.3f})"
+        )
+
+    ef_final = EfficientFrontier(mu, cov)
+    ef_final.efficient_risk(target_volatility)
+
+    cleaned_weights = ef_final.clean_weights()
+    perf = ef_final.portfolio_performance(verbose=False)
+    
     return cleaned_weights, perf, mu, cov
 
 
@@ -50,9 +90,20 @@ def simulate_monte_carlo_for_weights(mu, cov, weights_dict, investment_amount, t
 
 
 def build_portfolio_response(request: Input):
-    price_data = fetch_price_data(request.tickers, request.start_date, request.end_date)
+    all_tickers = request.tickers + ["SPY"]
+    price_data = fetch_price_data(all_tickers, request.start_date, request.end_date)
 
-    weights, (exp_return, volatility, sharpe), mu, cov = run_markowitz_optimization(price_data, request.tickers)
+    if request.use_risk_score and request.risk_score_percent is not None:
+        weights, (exp_return, volatility, sharpe), mu, cov = run_custom_risk_optimization(
+            price_data, request.tickers, request.risk_score_percent
+        )
+        method_used = f"Custom Risk Level ({request.risk_score_percent:.1f}%)"
+    else:
+        # Default: maximize Sharpe ratio
+        weights, (exp_return, volatility, sharpe), mu, cov = run_markowitz_optimization(
+            price_data, request.tickers
+        )
+        method_used = "Max Sharpe Ratio"
 
     monte_carlo_result = simulate_monte_carlo_for_weights(
         mu, cov, weights,
@@ -61,6 +112,7 @@ def build_portfolio_response(request: Input):
     )
 
     return {
+        "method_used": method_used,  # NEW: indicates chosen method clearly
         "optimal_weights": {k: round(v, 4) for k, v in weights.items()},
         "expected_return": round(exp_return, 4),
         "volatility": round(volatility, 4),
