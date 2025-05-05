@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 import yfinance as yf
 from yfinance import Ticker
 
+from db.dbConnect import get_db
 from models.models import QuantitativeRiskAnalysis
 from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_gemini_json_response
 from classes.Risk_Components import QuantRiskResponse, QuantRiskMetrics
@@ -146,9 +147,42 @@ class QuantitativeRiskService:
                 self.db.add(quantitative_analysis)
 
             self.db.commit()
+            return None
         except Exception as e:
             self.db.rollback()
             print(f"[Database Error] Failed to store quantitative risk analysis: {e}")
+            return None
+
+    # 4. Volume change calculation - improved version
+    def calculate_volume_change(self, hist, info):
+        """Calculate volume change using available metrics or historical data."""
+        # Try to use info metrics first (more reliable)
+        avg_volume = info.get('averageVolume')
+        current_volume = info.get('regularMarketVolume')
+
+        # If both metrics are available from info, use them
+        if avg_volume and current_volume and avg_volume > 0:
+            volume_change = ((current_volume / avg_volume) - 1) * 100
+            return volume_change
+
+        # Try alternate volume metrics if available
+        avg_volume_10day = info.get('averageVolume10days') or info.get('averageDailyVolume10Day')
+        if avg_volume_10day and current_volume and avg_volume_10day > 0:
+            volume_change = ((current_volume / avg_volume_10day) - 1) * 100
+            return volume_change
+
+        # Fall back to historical calculation if needed
+        if not hist.empty and 'Volume' in hist.columns:
+            # Calculate from historical data
+            avg_volume = hist['Volume'].mean()
+            recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
+
+            if avg_volume > 0:
+                volume_change = ((recent_volume / avg_volume) - 1) * 100
+                return volume_change
+
+        # If we couldn't calculate it with any method
+        return None
 
     def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
         """Calculate key quantitative risk metrics"""
@@ -209,9 +243,8 @@ class QuantitativeRiskService:
             rsi = 100 - (100 / (1 + rs.iloc[-1]))
 
             # 4. Volume change
-            avg_volume = hist['Volume'].mean()
-            recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
-            volume_change = ((recent_volume / avg_volume) - 1) * 100  # Percentage change
+            # Replace current volume change calculation
+            volume_change = self.calculate_volume_change(hist, info)
 
             # 5. Debt to Equity ratio
             debt_to_equity = info.get('debtToEquity')
@@ -373,3 +406,17 @@ class QuantitativeRiskService:
         # If no recent analysis exists, calculate new metrics
         print("No recent analysis found, calculating new metrics")
         return self.calculate_quantitative_metrics(lookback_days, use_gemini)
+
+
+if __name__ == "__main__":
+    # Example usage
+    db_gen = get_db()
+    session = next(db_gen)
+
+    ticker = "TSLA"
+    ticker_data = Ticker(ticker)  # Replace with actual Ticker object
+    gemini_client = None  # Replace with actual Gemini client
+
+    quantitative_risk_service = QuantitativeRiskService(gemini_client, session, ticker, ticker_data)
+    risk_response = quantitative_risk_service.get_quantitative_metrics()
+    print(risk_response.json())

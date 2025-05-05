@@ -273,7 +273,7 @@ if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
     try:
-        analyzer = RiskAnalysis("NVDA", session)
+        analyzer = RiskAnalysis("TSLA", session)
         report = analyzer.generate_risk_report(lookback_days=30)
         print(report)
     except Exception as e:
