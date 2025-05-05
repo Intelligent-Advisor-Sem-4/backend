@@ -243,7 +243,7 @@ class NewsSentimentService:
 
         Output must include:
 
-        1. **stability_score** (numeric): A score from -10 (extremely unstable/high risk) to +10 (extremely stable/secure)
+        1. **stability_score** (numeric): A score from 0 (extremely unstable/high risk) to +10 (extremely stable/secure)
         2. **stability_label** (string): One of ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
         3. **key_risks** (object): Key risk factors identified, with each category containing an ARRAY OF STRINGS:
            - legal_risks: Array of strings describing lawsuits, investigations, compliance failures
