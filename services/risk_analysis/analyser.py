@@ -1,9 +1,7 @@
-import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
 import yfinance as yf
-from google import genai
 from sqlalchemy.orm import Session
 
 from db.dbConnect import get_db
@@ -23,16 +21,12 @@ from classes.Risk_Components import (
     AnomalyDetectionResponse
 )
 
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 
 class RiskAnalysis:
     def __init__(self, ticker: str, db: Session):
         self.ticker = ticker
         self.db = db
         self.risk_components: Dict[str, Any] = {}
-        self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
         ticker_data = yf.Ticker(ticker)
         if ticker_data is None:
@@ -42,8 +36,8 @@ class RiskAnalysis:
             raise ValueError(f"No data found for ticker {ticker}.")
         self.stock = get_stock_by_ticker(db, ticker)
         self.ticker_data = ticker_data
-        self.news_service = NewsSentimentService(self.gemini_client, self.db, self.ticker, self.ticker_data)
-        self.quant_service = QuantitativeRiskService(self.gemini_client, self.db, self.ticker, self.ticker_data)
+        self.news_service = NewsSentimentService(self.db, self.ticker, self.ticker_data)
+        self.quant_service = QuantitativeRiskService(self.db, ticker=self.ticker, ticker_data=self.ticker_data )
         self.anomaly_service = AnomalyDetectionService(self.ticker, self.ticker_data)
         self.esg_service = ESGDataService(self.ticker, self.ticker_data)
 
@@ -164,11 +158,11 @@ class RiskAnalysis:
             # Calculate risk score
             self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(
                 prefer_newest=False,
-                use_gemini=False
+                use_llm=False
             )
             self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(
                 lookback_days,
-                use_gemini=False
+                use_llm=False
             )
             self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
             self.risk_components["esg"] = self.esg_service.get_esg_data()
@@ -188,13 +182,13 @@ class RiskAnalysis:
         return self.news_service.get_news_articles(limit=10)
 
     def get_news_sentiment_risk(self, prefer_newest: bool = False,
-                                use_gemini: bool = True) -> SentimentAnalysisResponse:
+                                use_llm: bool = True) -> SentimentAnalysisResponse:
         """
         Get news sentiment risk component
 
         Args:
             prefer_newest: Whether to prioritize the newest news articles
-            use_gemini: Whether to use Gemini for sentiment analysis
+            use_llm: Whether to use llm for sentiment analysis
 
         Returns:
             News sentiment analysis results
@@ -202,17 +196,17 @@ class RiskAnalysis:
         if "news_sentiment" not in self.risk_components:
             self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(
                 prefer_newest=prefer_newest,
-                use_gemini=use_gemini
+                use_llm=use_llm
             )
         return self.risk_components["news_sentiment"]
 
-    def get_quantitative_risk(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
+    def get_quantitative_risk(self, lookback_days: int = 30, use_llm: bool = True) -> QuantRiskResponse:
         """
         Get quantitative risk metrics
 
         Args:
             lookback_days: Number of days to look back for historical data
-            use_gemini: Whether to use Gemini for quantitative analysis
+            use_llm: Whether to use llm for quantitative analysis
 
         Returns:
             Quantitative risk metrics
@@ -220,7 +214,7 @@ class RiskAnalysis:
         if "quantitative" not in self.risk_components:
             self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(
                 lookback_days=lookback_days,
-                use_gemini=use_gemini
+                use_llm=use_llm
             )
         return self.risk_components["quantitative"]
 
@@ -249,20 +243,20 @@ class RiskAnalysis:
             self.risk_components["esg"] = self.esg_service.get_esg_data()
         return self.risk_components["esg"]
 
-    def get_all_risk_components(self, lookback_days: int = 30, use_gemini: bool = True) -> Dict[str, Any]:
+    def get_all_risk_components(self, lookback_days: int = 30, use_llm: bool = True) -> Dict[str, Any]:
         """
         Get all risk components at once
 
         Args:
             lookback_days: Number of days to look back for historical data
-            use_gemini: Whether to use Gemini for analysis
+            use_llm: Whether to use llm for analysis
 
         Returns:
             Dictionary containing all risk components
         """
         return {
-            "news_sentiment": self.get_news_sentiment_risk(use_gemini=use_gemini),
-            "quantitative": self.get_quantitative_risk(lookback_days=lookback_days, use_gemini=use_gemini),
+            "news_sentiment": self.get_news_sentiment_risk(use_llm=use_llm),
+            "quantitative": self.get_quantitative_risk(lookback_days=lookback_days, use_llm=use_llm),
             "anomalies": self.get_anomaly_risk(lookback_days=lookback_days),
             "esg": self.get_esg_risk()
         }
