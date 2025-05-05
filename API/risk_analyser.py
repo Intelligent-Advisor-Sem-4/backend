@@ -101,7 +101,7 @@ async def stream_risk_analysis(
     )
 
 
-@router.get("/risk-analysis/{ticker}")
+@router.get("/{ticker}")
 async def get_risk_analysis(
         ticker: str,
         lookback_days: int = 30,
@@ -130,4 +130,35 @@ async def get_risk_analysis(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating risk report: {str(e)}"
+        )
+
+
+@router.get("/{ticker}/regenerate-news-analysis")
+async def regenerate_news_analysis(
+        ticker: str,
+        db: Session = Depends(get_db)
+):
+    """
+    Regenerate news analysis for a ticker.
+    Args:
+        ticker: Stock ticker symbol
+        lookback_days: Number of days to analyze (default: 30)
+
+    Returns:
+        News analysis report
+        :param ticker:
+    """
+    try:
+        analyzer = RiskAnalysis(ticker=ticker, db=db)
+        report = analyzer.get_news_sentiment_risk(prefer_newest=True, use_gemini=True)
+        return report
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating news analysis report: {str(e)}"
         )
