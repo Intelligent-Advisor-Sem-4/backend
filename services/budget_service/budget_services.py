@@ -23,8 +23,27 @@ def get_transactions_by_user(db: Session, user_id: str) -> List[TransactionSchem
         .order_by(TransactionModel.created_at.desc())\
         .all()
 
+from datetime import datetime
+
 def create_transaction(db: Session, transaction: TransactionCreate) -> TransactionSchema:
-    db_transaction = TransactionModel(**transaction.model_dump())
+    # Create a dictionary of the transaction data without the 'date' field
+    transaction_data = transaction.model_dump(exclude={'date'})
+    
+    # Parse the datetime string and update the dictionary
+    if 'created_at' in transaction_data and transaction_data['created_at']:
+        # Parse the string to datetime object
+        created_at_str = transaction_data['created_at']
+        if isinstance(created_at_str, str):
+            # Handle both "2025-05-03 00:00:00" and "2025-05-03" formats
+            try:
+                created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                created_at = datetime.strptime(created_at_str, '%Y-%m-%d')
+            transaction_data['created_at'] = created_at
+    
+    print(transaction_data)
+    
+    db_transaction = TransactionModel(**transaction_data)
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
@@ -81,6 +100,13 @@ def get_transactions_by_category(db: Session, user_id: str) -> List[CategorySpen
     )\
     .group_by(TransactionModel.category)\
     .all()
+
+    if len(expenses)==0 and len(incomes)==0:
+        return [[],[]]
+    if len(expenses)==0:
+        return [[],[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in incomes]]
+    if len(incomes)==0:
+        return [[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in expenses],[]]
     
     return [[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in expenses],[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in incomes]]
 
@@ -170,7 +196,8 @@ def create_budget_goal(db: Session, goal: BudgetGoalCreate) -> BudgetGoalSchema:
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
-    return db_goal
+    print(goal,db_goal.id)
+    return BudgetGoalModel(**goal.model_dump(), id=db_goal.id)
 
 def update_budget_goal(
     db: Session, 

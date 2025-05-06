@@ -18,6 +18,8 @@ def prediction(user_id=None, period='day'):
     # Manual Model - Test1
     # print("Manual Model - Withput Categories")
     expense_data, income_data = data_collector.get_financial_dataframes_for_manual_model(connection)
+    print(expense_data)
+    print(income_data)
 
     # Get today's date
     today = pd.to_datetime('today').normalize()  # Normalize to remove time component
