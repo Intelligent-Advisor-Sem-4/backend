@@ -37,7 +37,6 @@ app.add_middleware(
 # Uncomment when ready to enforce token verification
 app.middleware("http")(token_verification_middleware)
 
-
 app.include_router(user.router)
 app.include_router(prediction.router)
 app.include_router(config.router)
@@ -45,6 +44,7 @@ app.include_router(profile.router)
 app.include_router(assets.router)
 app.include_router(risk_analyser.router)
 app.include_router(budget.router)
+
 
 @app.get("/")
 def welcome():
