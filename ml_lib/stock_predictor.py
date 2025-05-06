@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 from datetime import datetime, timedelta
+from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details
 
 def get_all_available_companies():
     url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
@@ -24,18 +25,27 @@ def get_all_available_companies():
         return []
 
 
-def getStockData(company,ending_date=None,size=None):
-    response = yf.Ticker(company).history(period = 'max',interval='1d')
-    if(ending_date == None):
-        if(size==None):
-            return response
-        else:
-            return response.tail(size)
-    else:
-        if(size==None):
-            return response.loc[response.index<ending_date]
-        else:
-            return response.loc[response.index<ending_date].tail(size)
+def getStockData(company, starting_date=None, ending_date=None, size=None):
+    response = yf.Ticker(company).history(period='max', interval='1d')
+    if starting_date:
+        response = response.loc[response.index >= starting_date]
+    if ending_date:
+        response = response.loc[response.index <= ending_date]
+    if size:
+        return response.tail(size)
+    return response
+def getStockDataV2(company, starting_date=None, ending_date=None, size=None):
+    response = yf.Ticker(company).history(period='max', interval='1d')
+    last_close_price = response['Close'].iloc[-1] if not response.empty else None
+    next_last_close_price = response['Close'].iloc[-2] if len(response) > 1 else None
+    perce = ((last_close_price-next_last_close_price)/next_last_close_price)*100
+    if starting_date:
+        response = response.loc[response.index >= starting_date]
+    if ending_date:
+        response = response.loc[response.index <= ending_date]
+    if size:
+        return response.tail(size)
+    return [response,last_close_price,perce]
 
 def trainer(company_name,batch=32,input_dim=90,lc=128):
     close_prices_b = getStockData(company_name)['Close'].values
@@ -102,29 +112,36 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         #     plt.legend()
         #     plt.grid()
         #     plt.show()
+        model_regiterer(company_name,time_step=90,rmse=final_rmse,model_location=model_path,scaler_location=scaler_file)
         return model,final_rmse
     except Exception as err:
         print(f"An error occurred: {err}")
+
+# data = yf.download(get_all_available_companies()[:25], group_by='ticker', period='max', threads=False)
+
 # for i in get_all_available_companies()[:25]:
 #     models_folder = "trainedModels"
-#     model_path = os.path.join(models_folder, f"{i}_trained_model.h5")
-#     if os.path.exists(model_path):
+#     model_path = os.path.join("ml_lib",models_folder, f"{i}_trained_model.keras")
+#     if os.path.exists(model_path) and get_model_details(i)!=None:
 #         print(f"Model for {i} already exists. Skipping training.")
 #         continue
 #     trainer(i)
+
 
 def predict(company_name, date):
     input_dim = 90
     output_dim = 7
     models_folder = "trainedModels"
     print(company_name,date)
-    model_path = os.path.join("ml_lib",models_folder, f"{company_name}_trained_model.keras")
-
+    model_detail = get_model_details(company_name)
+    if model_detail == None:
+        return None
+    model_path = model_detail.model_location
     if not os.path.exists(model_path):
-        print(f"Model or stats file for {company_name} not found.")
+        print(f"Model file for {company_name} not found.")
         return None
     model = tf.keras.models.load_model(model_path)
-    scaler_file = os.path.join("ml_lib",models_folder, f"{company_name}_scaler.pkl")
+    scaler_file = model_detail.scaler_location
     if not os.path.exists(scaler_file):
         print(f"Scaler file for {company_name} not found.")
         return None
@@ -143,7 +160,7 @@ def predict(company_name, date):
             print(f"Not enough data before {date} to make a prediction.")
             return None
 
-        previous_data = getStockData(company_name,date,input_dim)['Close']
+        previous_data = getStockData(company_name,ending_date=date,size=input_dim)['Close']
         last_date = previous_data.index[-1].date()
         previous_data = previous_data.values
         print(last_date)
@@ -167,5 +184,5 @@ def predict(company_name, date):
         return output
 
 
-# predict('AAPL',"2022-04-20")
+predict('AMD',"2022-04-20")
 

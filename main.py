@@ -9,7 +9,8 @@ app = FastAPI()
 
 # Define allowed origins with environment variable support
 allowed_origins = [
-    "https://intellifinance.shancloudservice.com"
+    "https://intellifinance.shancloudservice.com",
+    "http://localhost:3000",
 ]
 
 # Add frontend URL from environment variable if exists

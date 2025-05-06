@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from models.models import AssetStatus
 
 
@@ -14,8 +14,8 @@ class Input(BaseModel):
 
 class Ticker(BaseModel):
     ticker_symbol: str
-    asset_name: str
-    sectorDisp:str
+    asset_name: Optional[str] = None
+    sectorDisp: Optional[str] = None
     currency:str
     status:AssetStatus
 
