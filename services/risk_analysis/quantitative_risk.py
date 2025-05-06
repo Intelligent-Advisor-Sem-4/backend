@@ -60,7 +60,7 @@ class QuantitativeRiskService:
 
             # Prepare the prompt for Gemini
             prompt = f"""
-           As a financial risk and compliance analyst for a stock screening platform, that identifies and flags risky financial assets, analyze the following stock metrics for {self.ticker}:
+           As a financial risk and compliance analyst for a stock screening platform that identifies and flags potentially risky financial assets, analyze the following stock metrics for {self.ticker}:
 
             - Volatility: {volatility:.2f}% (annualized)
             - Beta: {beta_str}
@@ -70,11 +70,11 @@ class QuantitativeRiskService:
             - Overall Risk Score: {quant_risk_score:.2f}/10
             - EPS: {eps_str}
 
-            Our mission is NOT to advise on investments but to identify and flag potentially risky assets that could harm retail investors.
+            Your role is to assess the potential risk exposure retail investors might face, based on a **balanced consideration of all metrics**, without overemphasizing or biasing toward any single indicator.
 
             Provide your analysis in JSON format with exactly these two fields:
             1. "risk_label": Choose exactly one label from ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-            2. "explanation": A concise explanation (2-3 sentences) of the primary risk factors and their implications, mentioning EPS if it's a significant factor
+            2. "explanation": A concise explanation (3–5 sentences) that considers the **combined influence of the metrics**, explaining key risk contributors and their implications. Mention EPS only if it meaningfully influences the risk level.
 
             Return only valid JSON with no additional text, comments, or markdown formatting.
             """
