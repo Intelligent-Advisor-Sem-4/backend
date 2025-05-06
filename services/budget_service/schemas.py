@@ -16,7 +16,7 @@ class TransactionBase(BaseModel):
     user_id: str
 
 class TransactionCreate(TransactionBase):
-    pass
+    created_at: datetime = datetime.now()
 
 class Transaction(TransactionBase):
     id: int
@@ -40,7 +40,7 @@ class BudgetGoalBase(BaseModel):
     deadline: datetime
 
 class BudgetGoalCreate(BudgetGoalBase):
-    pass
+    created_at: datetime = datetime.now()
 
 class BudgetGoalUpdate(BaseModel):
     title: Optional[str] = None

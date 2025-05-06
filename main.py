@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.middleware("http")(token_verification_middleware)
+app.middleware("http")(token_verification_middleware)
 
 app.include_router(user.router)
 app.include_router(prediction.router)

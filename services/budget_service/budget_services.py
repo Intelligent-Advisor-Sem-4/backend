@@ -24,6 +24,7 @@ def get_transactions_by_user(db: Session, user_id: str) -> List[TransactionSchem
         .all()
 
 def create_transaction(db: Session, transaction: TransactionCreate) -> TransactionSchema:
+    print(transaction.model_dump())
     db_transaction = TransactionModel(**transaction.model_dump())
     db.add(db_transaction)
     db.commit()
@@ -56,7 +57,7 @@ def delete_transaction(db: Session, transaction_id: int) -> MessageResponse:
     return MessageResponse(message="Transaction deleted successfully")
 
 def get_transactions_by_category(db: Session, user_id: str) -> List[CategorySpending]:
-    sixty_days_ago = datetime.now() - timedelta(days=60)
+    sixty_days_ago = datetime.now() - timedelta(days=1200)
     
     expenses = db.query(
         TransactionModel.category, 
@@ -81,12 +82,19 @@ def get_transactions_by_category(db: Session, user_id: str) -> List[CategorySpen
     )\
     .group_by(TransactionModel.category)\
     .all()
+
+    if len(expenses)==0 and len(incomes)==0:
+        return [[],[]]
+    if len(expenses)==0:
+        return [[],[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in incomes]]
+    if len(incomes)==0:
+        return [[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in expenses],[]]
     
     return [[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in expenses],[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in incomes]]
 
 def get_transaction_summary(db: Session, user_id: str) -> TransactionSummary:
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    sixty_days_ago = datetime.now() - timedelta(days=60)
+    thirty_days_ago = datetime.now() - timedelta(days=1200)
+    sixty_days_ago = datetime.now() - timedelta(days=1230)
     
     # Current period (last 30 days)
     income = db.query(func.sum(TransactionModel.amount))\
@@ -170,7 +178,8 @@ def create_budget_goal(db: Session, goal: BudgetGoalCreate) -> BudgetGoalSchema:
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
-    return db_goal
+    print(goal,db_goal.id)
+    return BudgetGoalModel(**goal.model_dump(), id=db_goal.id)
 
 def update_budget_goal(
     db: Session, 
