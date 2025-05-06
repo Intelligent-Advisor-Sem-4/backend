@@ -17,6 +17,7 @@ class TransactionBase(BaseModel):
 
 class TransactionCreate(TransactionBase):
     created_at: datetime = datetime.now()
+    date: str
 
 class Transaction(TransactionBase):
     id: int

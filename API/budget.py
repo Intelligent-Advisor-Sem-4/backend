@@ -37,7 +37,7 @@ router = APIRouter(prefix='/budget')
 async def get_predictions(user_id: str):
     """Endpoint 1: Get financial predictions and advice"""
     predictions = prediction(user_id)
-    print(predictions)
+    # print(predictions)
     advice,goals = sub_llm.getFinancialAdvice(predictions)
     print(advice)
     print(goals)
@@ -53,7 +53,7 @@ async def get_budget_report(user_id: str):
     transactions = getTrascationOfMonth(user_id)
     print(transactions)
     budget = sub_llm.getBudgetReport(transactions)
-    print(transactions)
+    # print(transactions)
     print(budget)
     return {
         "transactions": transactions,

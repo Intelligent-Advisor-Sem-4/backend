@@ -23,9 +23,27 @@ def get_transactions_by_user(db: Session, user_id: str) -> List[TransactionSchem
         .order_by(TransactionModel.created_at.desc())\
         .all()
 
+from datetime import datetime
+
 def create_transaction(db: Session, transaction: TransactionCreate) -> TransactionSchema:
-    print(transaction.model_dump())
-    db_transaction = TransactionModel(**transaction.model_dump())
+    # Create a dictionary of the transaction data without the 'date' field
+    transaction_data = transaction.model_dump(exclude={'date'})
+    
+    # Parse the datetime string and update the dictionary
+    if 'created_at' in transaction_data and transaction_data['created_at']:
+        # Parse the string to datetime object
+        created_at_str = transaction_data['created_at']
+        if isinstance(created_at_str, str):
+            # Handle both "2025-05-03 00:00:00" and "2025-05-03" formats
+            try:
+                created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                created_at = datetime.strptime(created_at_str, '%Y-%m-%d')
+            transaction_data['created_at'] = created_at
+    
+    print(transaction_data)
+    
+    db_transaction = TransactionModel(**transaction_data)
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
@@ -57,7 +75,7 @@ def delete_transaction(db: Session, transaction_id: int) -> MessageResponse:
     return MessageResponse(message="Transaction deleted successfully")
 
 def get_transactions_by_category(db: Session, user_id: str) -> List[CategorySpending]:
-    sixty_days_ago = datetime.now() - timedelta(days=1200)
+    sixty_days_ago = datetime.now() - timedelta(days=60)
     
     expenses = db.query(
         TransactionModel.category, 
@@ -93,8 +111,8 @@ def get_transactions_by_category(db: Session, user_id: str) -> List[CategorySpen
     return [[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in expenses],[CategorySpending(category=e.category, amount=float(e.total_amount)) for e in incomes]]
 
 def get_transaction_summary(db: Session, user_id: str) -> TransactionSummary:
-    thirty_days_ago = datetime.now() - timedelta(days=1200)
-    sixty_days_ago = datetime.now() - timedelta(days=1230)
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    sixty_days_ago = datetime.now() - timedelta(days=60)
     
     # Current period (last 30 days)
     income = db.query(func.sum(TransactionModel.amount))\
