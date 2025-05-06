@@ -51,6 +51,12 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
     if not stock:
         raise ValueError(f"Stock with ID {stock_id} not found")
 
+    if stock.status == AssetStatus.PENDING:
+        raise ValueError(f"Stock with ID {stock_id} is still pending and cannot be updated")
+
+    if new_status == AssetStatus.PENDING:
+        raise ValueError(f"Cannot set status to PENDING for stock with ID {stock_id} manually")
+
     stock.status = new_status
     db.commit()
     db.refresh(stock)
