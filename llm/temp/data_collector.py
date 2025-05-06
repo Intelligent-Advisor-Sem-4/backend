@@ -73,7 +73,7 @@ def execute_query(session, query, params=None, fetch=False):
         # session.close()
         connection.close()
 
-def get_all_transactions(session, days=0, user_id=None):
+def get_all_transactions(session, days=30, user_id=None):
     """Get all transactions from the last N days (optionally for specific user)"""
     query = """
     SELECT 
