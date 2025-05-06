@@ -110,7 +110,7 @@ def reset_database():
     seed_database()
     print("Database reset successfully.")
 
-
+# reset_database()
 if __name__ == "__main__":
     # Uncomment the following line to reset the database
     reset_database()
