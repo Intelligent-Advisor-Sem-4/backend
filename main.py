@@ -35,7 +35,7 @@ app.add_middleware(
 )
 
 # Uncomment when ready to enforce token verification
-# app.middleware("http")(token_verification_middleware)
+app.middleware("http")(token_verification_middleware)
 
 app.include_router(user.router)
 app.include_router(prediction.router)
