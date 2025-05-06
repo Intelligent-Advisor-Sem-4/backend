@@ -22,6 +22,12 @@ class Gender(enum.Enum):
     FEMALE = "female"
     UNDEFINED = "undefined"
 
+class AssetStatus(enum.Enum):
+    PENDING = "Pending"  # Symbol added but model not trained
+    ACTIVE = "Active"  # Model trained; available for prediction and portfolios
+    WARNING = "Warning"  # Shows in dashboards but excluded from portfolios
+    BLACKLIST = "BlackList"  # Hidden from everything
+
 
 class AssetStatus(enum.Enum):
     PENDING = "Pending"  # Symbol added but model not trained
@@ -82,13 +88,13 @@ class Stock(Base):
 class StockPriceHistorical(Base):
     """Model for stock_price_historical table"""
     __tablename__ = "stock_price_historical"
-
-    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), primary_key=True)
-    price_date = Column(Date, primary_key=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"))
+    price_date = Column(DateTime)
     open_price = Column(Numeric(19, 4))
     high_price = Column(Numeric(19, 4))
-    low_price = Column(Numeric(19, 4))
-    close_price = Column(Numeric(19, 4))
+    low_price = Column(Numeric(19, 6))
+    close_price = Column(Numeric(19, 6))
     volume = Column(BigInteger)
     fetched_at = Column(DateTime(timezone=True), default=func.now())
 
