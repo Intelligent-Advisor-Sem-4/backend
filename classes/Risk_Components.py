@@ -133,9 +133,18 @@ class AnomalyFlag(BaseModel):
     severity: Optional[float] = None
 
 
+class HistoricalDataPoint(BaseModel):
+    date: str
+    close: float
+    volume: float
+    percent_change: Optional[float] = None
+
+
 class AnomalyDetectionResponse(BaseModel):
     flags: Optional[List[AnomalyFlag]] = None
     anomaly_score: Optional[float] = Field(None, description="Range: 0 to 10")
+    historical_data: Optional[List[HistoricalDataPoint]] = Field(default_factory=list,
+                                                                 description="Historical price and volume data for plotting")
 
 
 class NewsArticle(BaseModel):

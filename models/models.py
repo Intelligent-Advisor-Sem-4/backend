@@ -29,7 +29,6 @@ class AssetStatus(enum.Enum):
     WARNING = "Warning"  # Shows in dashboards but excluded from portfolios
     BLACKLIST = "BlackList"  # Hidden from everything
 
-
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -199,3 +198,41 @@ class QuantitativeRiskAnalysis(Base):
 
     def __repr__(self):
         return f"<QuantitativeRiskAnalysis(analysis_id={self.analysis_id}, volatility={self.volatility})>"
+
+class TransactionType(str,enum.Enum):
+    income = "income"
+    expense = "expense"
+
+class BudgetGoal(Base):
+    __tablename__ = "budget_goal"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    category = Column(Text, nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    deadline = Column(DateTime(timezone=True), nullable=False)
+
+    # Changed from "users" to UserModel
+    user = relationship("UserModel", backref=backref("budget_goal", lazy="dynamic"))
+
+    def __repr__(self):
+        return f"<BudgetGoal(id={self.id}, title='{self.title}', amount={self.amount})>"
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    type = Column(Enum(TransactionType), nullable=False)
+    reason = Column(Text, nullable=False)
+    category = Column(Text, nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    # Changed from "users" to UserModel
+    user = relationship("UserModel", backref=backref("transactions", lazy="dynamic"))
+
+    def __repr__(self):
+        return f"<Transaction(id={self.id}, type='{self.type}', amount={self.amount})>"

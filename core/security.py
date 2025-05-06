@@ -38,11 +38,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=100000))
     to_encode.update({"exp": expire})
+    print("*************************************")
+    print(to_encode["user_id"])
+    print("*************************************")
 
     required_fields = ["sub", "user_id", "role"]
     for field in required_fields:
         if field not in to_encode:
             raise ValueError(f"The '{field}' claim must be set in the token")
+
+    to_encode["user_id"] = str(to_encode["user_id"])
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

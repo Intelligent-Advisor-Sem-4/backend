@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+from sqlalchemy import create_engine, text
+from db.dbConnect import get_db,engine
 
 # Load environment variables
 load_dotenv()
@@ -45,26 +47,31 @@ def create_db_engine():
 
 def get_session():
     """Create and return a database session"""
-    engine = create_db_engine()
-    Session = sessionmaker(bind=engine) 
-    return Session()
+    # engine = get_db()
+    # Session = sessionmaker(bind=engine) 
+    return get_db()
 
 def execute_query(session, query, params=None, fetch=False):
     """Execute a SQL query and optionally return results"""
     try:
         if isinstance(query, str):
             query = text(query)
-        result = session.execute(query, params or {})
-        if fetch:
-            return result.fetchall()
-        session.commit()
-        return result
+        with engine.connect() as connection:
+            result = connection.execute(query, params)
+            print("Database connection successful!")
+            # print(result.fetchall())
+        # result = session.execute(query, params or {})
+        # if fetch:
+        #     return result.fetchall()
+        # session.commit()
+        return result.fetchall() if fetch else None
     except Exception as e:
         print(f"Error executing query: {e}")
-        session.rollback()
+        # session.rollback()
         raise  # Re-raise the exception after rollback
     finally:
-        session.close()
+        # session.close()
+        connection.close()
 
 def get_all_transactions(session, days=0, user_id=None):
     """Get all transactions from the last N days (optionally for specific user)"""
@@ -78,7 +85,7 @@ def get_all_transactions(session, days=0, user_id=None):
         t.category, 
         t.amount
     FROM transactions t
-    JOIN "user" u ON t.user_id = u.id
+    JOIN "users" u ON t.user_id = u.id
     WHERE t.created_at >= :start_date
     {user_condition}
     ORDER BY t.created_at DESC
