@@ -10,12 +10,12 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Adjust this for specific origins
-    allow_credentials=True,
+    # allow_credentials=True,
     allow_methods=["*"],  # Ensure POST is allowed
     allow_headers=["*"],
 )
 
-app.middleware("http")(token_verification_middleware)
+# app.middleware("http")(token_verification_middleware)
 
 app.include_router(user.router)
 app.include_router(prediction.router)
