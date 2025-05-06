@@ -50,6 +50,7 @@ def simulate_monte_carlo_for_weights(mu, cov, weights_dict, investment_amount, t
 
 
 def build_portfolio_response(request: Input):
+
     price_data = fetch_price_data(request.tickers, request.start_date, request.end_date)
 
     weights, (exp_return, volatility, sharpe), mu, cov = run_markowitz_optimization(price_data, request.tickers)
