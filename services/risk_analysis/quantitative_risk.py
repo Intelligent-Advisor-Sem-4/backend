@@ -11,41 +11,42 @@ from yfinance import Ticker
 
 from db.dbConnect import get_db
 from models.models import QuantitativeRiskAnalysis
-from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_gemini_json_response
+from services.llm.llm import generate_content_with_llm, LLMProvider, WriterModel
+from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_llm_json_response, \
+    calculate_volume_change
 from classes.Risk_Components import QuantRiskResponse, QuantRiskMetrics
 
 
 class QuantitativeRiskService:
-    def __init__(self, gemini_client, db: Session, ticker: str, ticker_data: Ticker):
-        self.gemini_client = gemini_client
+    def __init__(self, db: Session, ticker: str, ticker_data: Ticker):
         self.db = db
         self.ticker_data = ticker_data
         self.ticker = ticker
         self.stock = get_stock_by_ticker(db, ticker)
 
-    def _generate_quantitative_risk_explanation(self, ticker, volatility, beta, rsi, volume_change, debt_to_equity,
-                                                quant_risk_score, eps=None, use_gemini=True) -> Dict[str, str]:
-        """Generate a risk explanation and label using Google Gemini API if you use_gemini is True"""
+    def _generate_quantitative_risk_explanation(self, volatility, beta, rsi, volume_change, debt_to_equity,
+                                                quant_risk_score, eps=None, use_llm=True) -> Dict[str, str]:
+        """Generate a risk explanation and label using Google Gemini API if you use_llm is True"""
         print("Generating risk explanation")
         try:
             # If Gemini integration is disabled, return default response
-            if not use_gemini:
+            if not use_llm:
                 # Provide a default risk assessment based on the quantitative score
                 if quant_risk_score >= 8:
                     risk_label = "High Risk"
-                    explanation = f"{ticker} shows significant volatility and concerning financial metrics. Current metrics indicate heightened investment risk."
+                    explanation = f"{self.ticker} shows significant volatility and concerning financial metrics. Current metrics indicate heightened investment risk."
                 elif quant_risk_score >= 6:
                     risk_label = "Moderate Risk"
-                    explanation = f"{ticker} exhibits some concerning financial indicators. Consider the volatility and debt levels before investing."
+                    explanation = f"{self.ticker} exhibits some concerning financial indicators. Consider the volatility and debt levels before investing."
                 elif quant_risk_score >= 4:
                     risk_label = "Slight Risk"
-                    explanation = f"{ticker} shows moderate stability with some risk factors. Financial metrics suggest caution is warranted."
+                    explanation = f"{self.ticker} shows moderate stability with some risk factors. Financial metrics suggest caution is warranted."
                 elif quant_risk_score >= 2:
                     risk_label = "Stable"
-                    explanation = f"{ticker} demonstrates good stability across key metrics. Overall financial health appears solid."
+                    explanation = f"{self.ticker} demonstrates good stability across key metrics. Overall financial health appears solid."
                 else:
                     risk_label = "Very Stable"
-                    explanation = f"{ticker} shows excellent stability and strong financial metrics. Risk factors appear well-managed."
+                    explanation = f"{self.ticker} shows excellent stability and strong financial metrics. Risk factors appear well-managed."
 
                 return {
                     "risk_label": risk_label,
@@ -59,7 +60,7 @@ class QuantitativeRiskService:
 
             # Prepare the prompt for Gemini
             prompt = f"""
-           As a financial risk and compliance analyst for a stock screening platform, that identifies and flags risky financial assets, analyze the following stock metrics for {ticker}:
+           As a financial risk and compliance analyst for a stock screening platform that identifies and flags potentially risky financial assets, analyze the following stock metrics for {self.ticker}:
 
             - Volatility: {volatility:.2f}% (annualized)
             - Beta: {beta_str}
@@ -69,22 +70,22 @@ class QuantitativeRiskService:
             - Overall Risk Score: {quant_risk_score:.2f}/10
             - EPS: {eps_str}
 
-            Our mission is NOT to advise on investments but to identify and flag potentially risky assets that could harm retail investors.
+            Your role is to assess the potential risk exposure retail investors might face, based on a **balanced consideration of all metrics**, without overemphasizing or biasing toward any single indicator.
 
             Provide your analysis in JSON format with exactly these two fields:
             1. "risk_label": Choose exactly one label from ["High Risk", "Moderate Risk", "Slight Risk", "Stable", "Very Stable"]
-            2. "explanation": A concise explanation (2-3 sentences) of the primary risk factors and their implications, mentioning EPS if it's a significant factor
+            2. "explanation": A concise explanation (3–5 sentences) that considers the **combined influence of the metrics**, explaining key risk contributors and their implications. Mention EPS only if it meaningfully influences the risk level.
 
             Return only valid JSON with no additional text, comments, or markdown formatting.
             """
 
-            # Call the Gemini API
-            response = self.gemini_client.models.generate_content(model='gemini-2.0-flash-lite', contents=prompt)
-            response_text = response.text
+            response_text = generate_content_with_llm(llm_provider=LLMProvider.WRITER,
+                                                      writer_model=WriterModel.PALMYRA_FIN, prompt=prompt,
+                                                      max_tokens=1024)
 
             # Parse the JSON response using the common utility function
             try:
-                result = parse_gemini_json_response(response_text)
+                result = parse_llm_json_response(response_text)
 
                 # Validate the response has required fields
                 if "risk_label" not in result or "explanation" not in result:
@@ -154,37 +155,8 @@ class QuantitativeRiskService:
             return None
 
     # 4. Volume change calculation - improved version
-    def calculate_volume_change(self, hist, info):
-        """Calculate volume change using available metrics or historical data."""
-        # Try to use info metrics first (more reliable)
-        avg_volume = info.get('averageVolume')
-        current_volume = info.get('regularMarketVolume')
 
-        # If both metrics are available from info, use them
-        if avg_volume and current_volume and avg_volume > 0:
-            volume_change = ((current_volume / avg_volume) - 1) * 100
-            return volume_change
-
-        # Try alternate volume metrics if available
-        avg_volume_10day = info.get('averageVolume10days') or info.get('averageDailyVolume10Day')
-        if avg_volume_10day and current_volume and avg_volume_10day > 0:
-            volume_change = ((current_volume / avg_volume_10day) - 1) * 100
-            return volume_change
-
-        # Fall back to historical calculation if needed
-        if not hist.empty and 'Volume' in hist.columns:
-            # Calculate from historical data
-            avg_volume = hist['Volume'].mean()
-            recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
-
-            if avg_volume > 0:
-                volume_change = ((recent_volume / avg_volume) - 1) * 100
-                return volume_change
-
-        # If we couldn't calculate it with any method
-        return None
-
-    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
+    def calculate_quantitative_metrics(self, lookback_days: int = 30, use_llm: bool = True) -> QuantRiskResponse:
         """Calculate key quantitative risk metrics"""
         print('Calculating quantitative metrics')
         end_date = datetime.now()
@@ -244,7 +216,7 @@ class QuantitativeRiskService:
 
             # 4. Volume change
             # Replace current volume change calculation
-            volume_change = self.calculate_volume_change(hist, info)
+            volume_change = calculate_volume_change(hist, info)
 
             # 5. Debt to Equity ratio
             debt_to_equity = info.get('debtToEquity')
@@ -274,7 +246,6 @@ class QuantitativeRiskService:
 
             # Generate AI explanation
             risk_analysis = self._generate_quantitative_risk_explanation(
-                ticker=self.ticker,
                 volatility=volatility,
                 beta=beta,
                 rsi=rsi,
@@ -282,7 +253,7 @@ class QuantitativeRiskService:
                 debt_to_equity=debt_to_equity,
                 quant_risk_score=quant_risk_score,
                 eps=eps,
-                use_gemini=use_gemini
+                use_llm=use_llm
             )
 
             # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
@@ -318,14 +289,14 @@ class QuantitativeRiskService:
                 risk_explanation="Unable to calculate risk metrics due to an error."
             )
 
-    def get_quantitative_metrics(self, lookback_days: int = 30, use_gemini: bool = True) -> QuantRiskResponse:
+    def get_quantitative_metrics(self, lookback_days: int = 30, use_llm: bool = True) -> QuantRiskResponse:
         """Check if there is an existing metric for the symbol and if exists it is not older than 2 days return it"""
         print("Get quantitative metrics")
 
         # If stock is None, always calculate new metrics
         if self.stock is None:
             print("No stock in database, calculating new metrics")
-            return self.calculate_quantitative_metrics(lookback_days, use_gemini)
+            return self.calculate_quantitative_metrics(lookback_days, use_llm)
 
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
@@ -370,14 +341,13 @@ class QuantitativeRiskService:
 
             # Generate AI explanation
             risk_analysis = self._generate_quantitative_risk_explanation(
-                ticker=self.ticker,
                 volatility=volatility,
                 beta=beta,
                 rsi=rsi,
                 volume_change=volume_change,
                 debt_to_equity=debt_to_equity,
                 quant_risk_score=risk_scores["quant_risk_score"],
-                use_gemini=use_gemini
+                use_llm=use_llm
             )
 
             # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
@@ -405,7 +375,7 @@ class QuantitativeRiskService:
 
         # If no recent analysis exists, calculate new metrics
         print("No recent analysis found, calculating new metrics")
-        return self.calculate_quantitative_metrics(lookback_days, use_gemini)
+        return self.calculate_quantitative_metrics(lookback_days, use_llm)
 
 
 if __name__ == "__main__":
@@ -413,10 +383,10 @@ if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
 
-    ticker = "TSLA"
-    ticker_data = Ticker(ticker)  # Replace with actual Ticker object
+    t = "TSLA"
+    t_d = Ticker(t)  # Replace with actual Ticker object
     gemini_client = None  # Replace with actual Gemini client
 
-    quantitative_risk_service = QuantitativeRiskService(gemini_client, session, ticker, ticker_data)
+    quantitative_risk_service = QuantitativeRiskService(session, t, ticker_data=t_d)
     risk_response = quantitative_risk_service.get_quantitative_metrics()
-    print(risk_response.json())
+    print(risk_response.model_dump())

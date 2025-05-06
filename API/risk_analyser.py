@@ -27,7 +27,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
 
     # Step 2: News sentiment
     try:
-        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False, use_gemini=True)
+        news_sentiment = analyzer.get_news_sentiment_risk(prefer_newest=False, use_llm=True)
         yield f"data: {json.dumps({'type': 'news_sentiment', 'data': jsonable_encoder(news_sentiment)})}\n\n"
     except Exception as e:
         yield f"data: {json.dumps({'type': 'section_error', 'section': 'news_sentiment', 'message': str(e)})}\n\n"
@@ -35,7 +35,7 @@ async def risk_analysis_stream(ticker: str, lookback_days: int, db: Session) -> 
 
     # Step 3: Quantitative risk
     try:
-        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_gemini=True)
+        quantitative_risk = analyzer.get_quantitative_risk(lookback_days=lookback_days, use_llm=True)
         yield f"data: {json.dumps({'type': 'quantitative_risk', 'data': jsonable_encoder(quantitative_risk)})}\n\n"
     except Exception as e:
         yield f"data: {json.dumps({'type': 'section_error', 'section': 'quantitative_risk', 'message': str(e)})}\n\n"
@@ -150,7 +150,7 @@ async def regenerate_news_analysis(
     """
     try:
         analyzer = RiskAnalysis(ticker=ticker, db=db)
-        report = analyzer.get_news_sentiment_risk(prefer_newest=True, use_gemini=True)
+        report = analyzer.get_news_sentiment_risk(prefer_newest=True, use_llm=True)
         return report
     except ValueError as e:
         raise HTTPException(
