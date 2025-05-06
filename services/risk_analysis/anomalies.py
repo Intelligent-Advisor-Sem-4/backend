@@ -3,7 +3,7 @@ from typing import List
 
 from yfinance import Ticker
 
-from classes.Risk_Components import AnomalyDetectionResponse, AnomalyFlag
+from classes.Risk_Components import AnomalyDetectionResponse, AnomalyFlag, HistoricalDataPoint
 
 
 class AnomalyDetectionService:
@@ -21,7 +21,7 @@ class AnomalyDetectionService:
             # Get historical data
             hist = self.ticker_data.history(start=start_date, end=end_date)
             if hist.empty:
-                return AnomalyDetectionResponse(flags=[], anomaly_score=0)
+                return AnomalyDetectionResponse(flags=[], anomaly_score=0, historical_data=[])
 
             flags: List[AnomalyFlag] = []
             flag_scores = []
@@ -38,7 +38,7 @@ class AnomalyDetectionService:
                     type="Price Gap",
                     date=date.strftime("%Y-%m-%d"),
                     description=f"Unusual price change of {change * 100:.2f}% (over 3σ)",
-                    severity=float(severity)  # Convert to float as defined in the model
+                    severity=float(severity)
                 ))
 
             # 2. Check for unusual volume spikes
@@ -54,7 +54,7 @@ class AnomalyDetectionService:
                     type="Volume Spike",
                     date=date.strftime("%Y-%m-%d"),
                     description=f"Volume {volume_ratio:.1f}x above average",
-                    severity=float(severity)  # Convert to string as defined in the model
+                    severity=float(severity)
                 ))
 
             # 3. Check for bearish patterns (e.g., consecutive down days)
@@ -69,7 +69,7 @@ class AnomalyDetectionService:
                     type="Bearish Pattern",
                     date=bearish_runs.idxmax().strftime("%Y-%m-%d"),
                     description=f"{int(bearish_runs.max())} down days in a 5-day window",
-                    severity=float(severity)  # Convert to string as defined in the model
+                    severity=float(severity)
                 ))
 
             # Calculate anomaly score
@@ -77,10 +77,21 @@ class AnomalyDetectionService:
             if len(flags) > 3:  # If there are multiple anomalies
                 anomaly_score = min(10.0, anomaly_score * (1 + 0.1 * (len(flags) - 3)))
 
+            # Create historical data points for frontend plotting
+            historical_data = []
+            for date, row in hist.iterrows():
+                historical_data.append(HistoricalDataPoint(
+                    date=date.strftime("%Y-%m-%d"),
+                    close=float(row['Close']),
+                    volume=float(row['Volume']),
+                    percent_change=float(daily_changes.get(date, 0))
+                ))
+
             return AnomalyDetectionResponse(
                 flags=flags,
-                anomaly_score=float(anomaly_score)
+                anomaly_score=float(anomaly_score),
+                historical_data=historical_data
             )
         except Exception as e:
             print(f"Error detecting anomalies: {e}")
-            return AnomalyDetectionResponse(flags=[], anomaly_score=0)
+            return AnomalyDetectionResponse(flags=[], anomaly_score=0, historical_data=[])
