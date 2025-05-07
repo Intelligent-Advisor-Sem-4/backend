@@ -9,7 +9,8 @@ app = FastAPI()
 
 # Define allowed origins with environment variable support
 allowed_origins = [
-    "https://intellifinance.shancloudservice.com"
+    "https://intellifinance.shancloudservice.com",
+    "http://localhost:3000",
 ]
 
 # Add frontend URL from environment variable if exists
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Uncomment when ready to enforce token verification
 # app.middleware("http")(token_verification_middleware)
+
 
 app.include_router(user.router)
 app.include_router(prediction.router)
