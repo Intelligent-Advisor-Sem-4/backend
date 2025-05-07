@@ -37,8 +37,9 @@ router = APIRouter(prefix='/budget')
 async def get_predictions(user_id: str):
     """Endpoint 1: Get financial predictions and advice"""
     predictions = prediction(user_id)
-    print(predictions)
-    advice,goals = sub_llm.getFinancialAdvice(predictions)
+    transactions = getTrascationOfMonth(user_id)
+    # print(predictions)
+    advice,goals = sub_llm.getFinancialAdvice(predictions,transactions)
     print(advice)
     print(goals)
     return {
@@ -53,14 +54,14 @@ async def get_budget_report(user_id: str):
     transactions = getTrascationOfMonth(user_id)
     print(transactions)
     budget = sub_llm.getBudgetReport(transactions)
-    print(transactions)
+    # print(transactions)
     print(budget)
     return {
         "transactions": transactions,
         "budget_report": budget
     }
 
-@router.post("/categorize-transaction")
+@router.get("/categorize-transaction")
 async def categorize_transaction(description: str, amount: float, type: str):
     """Endpoint 3: Categorize a new transaction"""
     res = sub_llm.getTransactionCategories(description, amount, type)
@@ -83,6 +84,7 @@ async def get_expenses_by_user_id(user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/transactions", response_model=Transaction)
 async def create_expense(expense: TransactionCreate, db: Session = Depends(get_db)):
+    print(expense)
     return create_transaction(db, expense)
 
 @router.put("/transactions/{transaction_id}", response_model=Transaction)

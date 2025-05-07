@@ -1,10 +1,10 @@
 import json
 
-def prediction_advisor_agent(predictions, client):
+def prediction_advisor_agent(predictions,transactions, client):
     """Generates actionable advice from budget predictions with robust error handling"""
     try:
         # Phase 1: Generate analysis with strict validation
-        analysis = generate_analysis_phase(predictions, client)
+        analysis = generate_analysis_phase(predictions,transactions, client)
         
         # Phase 2: Generate recommendation with strict validation
         recommendation = generate_recommendation_phase(predictions, client)
@@ -18,29 +18,24 @@ def prediction_advisor_agent(predictions, client):
         print(f"Unexpected error: {str(e)}")
         return get_fallback_responses(predictions)
 
-def generate_analysis_phase(predictions, client):
+def generate_analysis_phase(predictions,transactions, client):
     """First phase with stricter prompt and validation"""
+    data = []
+    for txn in transactions:
+        data.append((txn['date'],txn['type'],txn['reason'],txn['category'],txn['amount']))
     prompt = f"""
     STRICTLY follow these instructions to analyze financial predictions:
 
     Predictions Data: {json.dumps(predictions)}
+    Last Month Transaction Data [(date, type, reason, category, amount )]: {data}
 
-    Respond ONLY with valid JSON containing these EXACT keys:
-    {{
-        "observations": 2 sentence MAX cash flow observation,
-        "daily_actions": 1 specific action for today in 2 sentences MAX,
-        "weekly_actions": 1 specific weekly action in 2 sentences MAX,
-        "monthly_actions": 1 specific monthly action in 2 sentences MAX,
-        "risks": Top risk warning in 2 sentences MAX,
-        "long_term_insights": Key long-term impact in 2 sentences MAX
-    }}
+    Respond text should be in following format:
+    observation1,observation2|daily_action|weekly_action|monthly_action|risk1,risk2|long_term_insight1,long_term_insight2
 
     RULES:
     1. Use direct commands ("Do X" not "Consider Y")
     2. Include numbers when possible
-    3. No explanations or extra text outside JSON
-    4. Keep ALL responses under 2 sentences
-    5. Ensure JSON is properly terminated
+    3. Keep ALL responses under 2 sentences
     """
     
     completion = client.chat.completions.create(
@@ -51,17 +46,24 @@ def generate_analysis_phase(predictions, client):
         response_format={"type": "json_object"}
     )
     
-    result = completion.choices[0].message.content
-    print("Raw Analysis Output:", result)
+    res = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|")
+    print("Raw Analysis Output:", res)
     
     # Validate JSON structure before returning
-    parsed = json.loads(result)
-    required_keys = {"observations", "daily_actions", "weekly_actions", 
-                    "monthly_actions", "risks", "long_term_insights"}
-    if not required_keys.issubset(parsed.keys()):
-        raise ValueError("Missing required keys in analysis response")
+    # parsed = json.loads(result)
+    # required_keys = {"observations", "daily_actions", "weekly_actions", 
+    #                 "monthly_actions", "risks", "long_term_insights"}
+    # if not required_keys.issubset(parsed.keys()):
+    #     raise ValueError("Missing required keys in analysis response")
     
-    return parsed
+    return {
+        "observations": res[0].split(","),
+        "daily_actions": res[1].split(","),
+        "weekly_actions": res[2].split(","),
+        "monthly_actions": res[3].split(","),
+        "risks": res[4].split(","),
+        "long_term_insights": res[5].split(",")
+    }
 
 def generate_recommendation_phase(predictions, client):
     """Second phase with stricter validation"""

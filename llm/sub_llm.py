@@ -15,17 +15,27 @@ client = openai.OpenAI(
     api_key=os.getenv("NVIDIA_API_KEY")  # Make sure your .env has this key
 )
 
+client1 = openai.OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.getenv("NVIDIA_API_KEY")  # Make sure your .env has this key
+)
+
+client2 = openai.OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.getenv("NVIDIA_API_KEY")  # Make sure your .env has this key
+)
+
 def getClient():
     return client
 
 def getBudgetReport(transactions):
-    return ba.budget_analyst_agent(transactions,client=client)
+    return ba.budget_analyst_agent(transactions,clients=[client,client1,client2])
 
 def getTransactionCategories(description,amount,transaction_type):
     return tc.transaction_categorizer_agent(description,amount,transaction_type,client=client)
 
-def getFinancialAdvice(predictions):
-    return fpa.prediction_advisor_agent(predictions,client=client)
+def getFinancialAdvice(predictions,transactions):
+    return fpa.prediction_advisor_agent(predictions,transactions,client=client)
 
 def getChat(p):
     return chat.chat_with_llm(p,client=client)
