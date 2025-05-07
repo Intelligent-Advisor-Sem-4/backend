@@ -58,7 +58,7 @@ def recommendations_agent(transaction_history,client):
     Analyze this transaction history for the past month and provide specific optimization recommendations and Any urgent alerts
 
     Transaction History: [(date, type, reason, category, amount )]
-    {transaction_history[0]}
+    {transaction_history}
 
     Just give me a text response in this format
     recomendation1,recomendation2,recomendation3,...|alert1,alert2,alert3,...
