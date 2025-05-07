@@ -111,7 +111,8 @@ class QuantitativeRiskService:
                 "explanation": "Risk analysis not available due to an error."
             }
 
-    def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity, eps=None) -> None:
+    def _store_quantitative_risk_analysis(self, volatility, beta, rsi, volume_change, debt_to_equity, eps=None,
+                                          risk_analysis=None) -> None:
         """Store or update quantitative risk analysis in the database"""
         print("Storing quantitative analysis record")
         # Return early if stock is None
@@ -130,7 +131,11 @@ class QuantitativeRiskService:
                 existing_analysis.rsi = float(rsi) if rsi is not None else None
                 existing_analysis.volume_change = float(volume_change) if volume_change is not None else None
                 existing_analysis.debt_to_equity = float(debt_to_equity) if debt_to_equity is not None else None
+                existing_analysis.eps = float(eps) if eps is not None else None
                 existing_analysis.updated_at = datetime.now()
+                # Store the risk analysis response if provided
+                if risk_analysis is not None:
+                    existing_analysis.response = risk_analysis
             else:
                 # Create new record
                 print("Creating new report")
@@ -144,6 +149,7 @@ class QuantitativeRiskService:
                     created_at=datetime.now(),
                     updated_at=datetime.now(),
                     eps=to_python_type(eps),
+                    response=risk_analysis if risk_analysis is not None else None
                 )
                 self.db.add(quantitative_analysis)
 
@@ -231,16 +237,6 @@ class QuantitativeRiskService:
                 eps=eps
             )
 
-            # Store the quantitative risk analysis in the database
-            self._store_quantitative_risk_analysis(
-                volatility=volatility,
-                beta=beta,
-                rsi=rsi,
-                eps=eps,
-                volume_change=volume_change,
-                debt_to_equity=debt_to_equity
-            )
-
             # Get the overall risk score for the Gemini explanation
             quant_risk_score = risk_scores["quant_risk_score"]
 
@@ -254,6 +250,17 @@ class QuantitativeRiskService:
                 quant_risk_score=quant_risk_score,
                 eps=eps,
                 use_llm=use_llm
+            )
+
+            # Store the quantitative risk analysis in the database
+            self._store_quantitative_risk_analysis(
+                volatility=volatility,
+                beta=beta,
+                rsi=rsi,
+                eps=eps,
+                volume_change=volume_change,
+                debt_to_equity=debt_to_equity,
+                risk_analysis=risk_analysis
             )
 
             # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
@@ -303,6 +310,66 @@ class QuantitativeRiskService:
         if quantitative_analysis and quantitative_analysis.updated_at > datetime.now() - timedelta(days=1):
             print("Existing metric exists")
 
+            # Check if a valid response exists in the database
+            if quantitative_analysis.response:
+                stored_response = quantitative_analysis.response
+                # Check if it's a valid response (not an error message)
+                if (isinstance(stored_response, dict) and
+                        "risk_label" in stored_response and
+                        "explanation" in stored_response and
+                        "Risk analysis not available due to an error." not in stored_response["explanation"] and
+                        "Unable to parse risk analysis" not in stored_response["explanation"]):
+                    print("Using stored response from database")
+
+                    # Handle NaN values for metrics
+                    volatility = float(
+                        quantitative_analysis.volatility) if quantitative_analysis.volatility is not None and str(
+                        quantitative_analysis.volatility).lower() != 'nan' else None
+                    beta = float(quantitative_analysis.beta) if quantitative_analysis.beta is not None and str(
+                        quantitative_analysis.beta).lower() != 'nan' else None
+                    rsi = float(quantitative_analysis.rsi) if quantitative_analysis.rsi is not None and str(
+                        quantitative_analysis.rsi).lower() != 'nan' else None
+                    volume_change = float(
+                        quantitative_analysis.volume_change) if quantitative_analysis.volume_change is not None and str(
+                        quantitative_analysis.volume_change).lower() != 'nan' else None
+                    debt_to_equity = float(
+                        quantitative_analysis.debt_to_equity) if quantitative_analysis.debt_to_equity is not None and str(
+                        quantitative_analysis.debt_to_equity).lower() != 'nan' else None
+                    eps = float(quantitative_analysis.eps) if quantitative_analysis.eps is not None and str(
+                        quantitative_analysis.eps).lower() != 'nan' else None
+
+                    risk_scores = calculate_risk_scores(
+                        volatility=volatility,
+                        beta=beta,
+                        rsi=rsi,
+                        volume_change=volume_change,
+                        debt_to_equity=debt_to_equity,
+                        eps=eps
+                    )
+
+                    # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
+                    risk_metrics = QuantRiskMetrics(
+                        volatility_score=risk_scores.get("volatility_score"),
+                        beta_score=risk_scores.get("beta_score"),
+                        rsi_risk=risk_scores.get("rsi_risk"),
+                        volume_risk=risk_scores.get("volume_risk"),
+                        debt_risk=risk_scores.get("debt_risk"),
+                        eps_risk=risk_scores.get("eps_risk"),
+                        quant_risk_score=risk_scores.get("quant_risk_score")
+                    )
+
+                    # Return the results using the stored response
+                    return QuantRiskResponse(
+                        volatility=volatility,
+                        beta=beta,
+                        rsi=rsi,
+                        volume_change_percent=volume_change,
+                        debt_to_equity=debt_to_equity,
+                        risk_metrics=risk_metrics,
+                        risk_label=stored_response["risk_label"],
+                        risk_explanation=stored_response["explanation"]
+                    )
+
             # Handle NaN values in beta and other fields
             beta = None
             try:
@@ -347,8 +414,17 @@ class QuantitativeRiskService:
                 volume_change=volume_change,
                 debt_to_equity=debt_to_equity,
                 quant_risk_score=risk_scores["quant_risk_score"],
+                eps=eps,
                 use_llm=use_llm
             )
+
+            # Store the response for future use
+            try:
+                quantitative_analysis.response = risk_analysis
+                self.db.commit()
+            except Exception as e:
+                self.db.rollback()
+                print(f"Error storing response: {e}")
 
             # Convert risk_scores dictionary to QuantRiskMetrics Pydantic model
             risk_metrics = QuantRiskMetrics(
