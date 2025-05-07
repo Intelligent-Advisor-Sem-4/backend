@@ -41,7 +41,8 @@ def getStockData(company, starting_date=None, ending_date=None, size=None):
     return [response,last_close_price,perce,last_date]
 
 def trainer(company_name,batch=32,input_dim=90,lc=128):
-    close_prices_b = getStockData(company_name)[0]['Close'].values
+    stdata = getStockData(company_name)
+    close_prices_b = stdata[0]['Close'].values
     scaler = MinMaxScaler()
     output_dim = 7
     close_prices = scaler.fit_transform(close_prices_b.reshape(-1,1))
@@ -91,7 +92,7 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         #     plt.legend()
         #     plt.grid()
         #     plt.show()
-        model_regiterer(company_name,time_step=90,rmse=final_rmse,model_location=model_path,scaler_location=scaler_file)
+        model_regiterer(company_name,time_step=90,rmse=final_rmse,model_location=model_path,scaler_location=scaler_file,last_date=stdata[-1])
         return model,final_rmse
     except Exception as err:
         print(f"An error occurred: {err}")
