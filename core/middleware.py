@@ -3,6 +3,8 @@ import logging
 import json
 import urllib.parse
 
+from models.models import AccessLevel
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -116,4 +118,58 @@ async def token_verification_middleware(request: Request, call_next):
             content={"detail": "Authentication error"}
         )
 
+    return await call_next(request)
+
+
+# Middleware to verify admin access for specific routes
+async def admin_access_middleware(request: Request, call_next):
+    # Define admin-only routes
+    admin_only_routes = [
+        {"path": "/assets/create-stock", "method": "POST"},
+        {"path": "/assets/{stock_id}/status", "method": "PUT"},
+        {"path": "/assets/{stock_id}", "method": "DELETE"},
+        {"path": "/risk-analysis/{ticker}/regenerate-news-analysis", "method": "GET"}
+    ]
+
+    # Check if the current route requires admin access
+    current_path = request.url.path
+    current_method = request.method
+
+    requires_admin = False
+    for route in admin_only_routes:
+        # Handle path parameters by comparing path segments
+        route_parts = route["path"].split("/")
+        current_parts = current_path.split("/")
+
+        if len(route_parts) == len(current_parts) and route["method"] == current_method:
+            matches = True
+            for i, part in enumerate(route_parts):
+                if part.startswith("{") and part.endswith("}"):
+                    # This is a path parameter, skip exact matching
+                    continue
+                if part != current_parts[i]:
+                    matches = False
+                    break
+
+            if matches:
+                requires_admin = True
+                break
+
+    # If route requires admin access, check user role
+    if requires_admin:
+        # Ensure user is authenticated
+        if not hasattr(request.state, "user"):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Authentication required"}
+            )
+
+        user_data = request.state.user
+        if user_data.get("role") != AccessLevel.ADMIN.value:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Admin access required for this operation"}
+            )
+
+    # Continue with the request
     return await call_next(request)

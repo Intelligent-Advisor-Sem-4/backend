@@ -1,10 +1,10 @@
 import json
 
-def prediction_advisor_agent(predictions, client):
+def prediction_advisor_agent(predictions,transactions, client):
     """Generates actionable advice from budget predictions with robust error handling"""
     try:
         # Phase 1: Generate analysis with strict validation
-        analysis = generate_analysis_phase(predictions, client)
+        analysis = generate_analysis_phase(predictions,transactions, client)
         
         # Phase 2: Generate recommendation with strict validation
         recommendation = generate_recommendation_phase(predictions, client)
@@ -18,29 +18,24 @@ def prediction_advisor_agent(predictions, client):
         print(f"Unexpected error: {str(e)}")
         return get_fallback_responses(predictions)
 
-def generate_analysis_phase(predictions, client):
+def generate_analysis_phase(predictions,transactions, client):
     """First phase with stricter prompt and validation"""
+    data = []
+    for txn in transactions:
+        data.append((txn['date'],txn['type'],txn['reason'],txn['category'],txn['amount']))
     prompt = f"""
     STRICTLY follow these instructions to analyze financial predictions:
 
     Predictions Data: {json.dumps(predictions)}
+    Last Month Transaction Data [(date, type, reason, category, amount )]: {data}
 
-    Respond ONLY with valid JSON containing these EXACT keys:
-    {{
-        "observations": 2 sentence MAX cash flow observation,
-        "daily_actions": 1 specific action for today in 2 sentences MAX,
-        "weekly_actions": 1 specific weekly action in 2 sentences MAX,
-        "monthly_actions": 1 specific monthly action in 2 sentences MAX,
-        "risks": Top risk warning in 2 sentences MAX,
-        "long_term_insights": Key long-term impact in 2 sentences MAX
-    }}
+    Respond text should be in following format:
+    observations,...|daily_action|weekly_action|monthly_action|risks,...|long_term_insights,...
 
     RULES:
     1. Use direct commands ("Do X" not "Consider Y")
     2. Include numbers when possible
-    3. No explanations or extra text outside JSON
-    4. Keep ALL responses under 2 sentences
-    5. Ensure JSON is properly terminated
+    3. Keep ALL responses under 2 sentences
     """
     
     completion = client.chat.completions.create(
@@ -48,20 +43,46 @@ def generate_analysis_phase(predictions, client):
         messages=[{"role": "user", "content": prompt}],
         max_tokens=512,
         temperature=0.1,  # Lower temperature for more predictable output
-        response_format={"type": "json_object"}
+        response_format={"type": "text"}
     )
     
-    result = completion.choices[0].message.content
-    print("Raw Analysis Output:", result)
+    res = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|")
+
+    print("Raw Analysis Output:", res)
+
+    # prompt = f"""
+    # Given text should be converted to the following text struture
+    # given text: {res}
+    # response structure:
+    # observations,...|daily_action|weekly_action|monthly_action|risks,...|long_term_insights,...
+    # """
+    
+    # completion = client.chat.completions.create(
+    #     model="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    #     messages=[{"role": "user", "content": prompt}],
+    #     max_tokens=512,
+    #     temperature=0.1,  # Lower temperature for more predictable output
+    #     response_format={"type": "text"}
+    # )
+    
+    # res = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|")
+    # print("Raw Analysis Output2:", res)
     
     # Validate JSON structure before returning
-    parsed = json.loads(result)
-    required_keys = {"observations", "daily_actions", "weekly_actions", 
-                    "monthly_actions", "risks", "long_term_insights"}
-    if not required_keys.issubset(parsed.keys()):
-        raise ValueError("Missing required keys in analysis response")
-    
-    return parsed
+    # parsed = json.loads(result)
+    # required_keys = {"observations", "daily_actions", "weekly_actions", 
+    #                 "monthly_actions", "risks", "long_term_insights"}
+    # if not required_keys.issubset(parsed.keys()):
+    #     raise ValueError("Missing required keys in analysis response")
+     
+    return {
+        "observations": res[0].split(","),
+        "daily_actions": res[1].split(","),
+        "weekly_actions": res[2].split(","),
+        "monthly_actions": res[3].split(","),
+        "risks": res[4].split(","),
+        "long_term_insights": res[5].split(",")
+    }
 
 def generate_recommendation_phase(predictions, client):
     """Second phase with stricter validation"""

@@ -1,28 +1,67 @@
-import json
-def budget_analyst_agent(transaction_history,client):
-    """Analyzes past month's spending patterns and gives recommendations"""
-    prompt = f"""
-    Analyze this transaction history for the past month and provide:
-    1. A spending summary (total income, expenses, net savings)
-    2. Assessment of spending health (Good/Moderate/Poor)
-    3. Three specific optimization recommendations
-    4. Any urgent alerts
+from collections import defaultdict
+import time
 
-    Transaction History: [(id, user name, date, type, reason, category, amount )]
+def calculate_financial_summary(transaction_history):
+    """Manually calculates financial metrics from transaction history"""
+    total_income = 0.0
+    total_expenses = 0.0
+    category_spending = defaultdict(float)
+    
+    for transaction in transaction_history:
+        amount = transaction['amount']  # Assuming amount is the last element
+        if transaction['type'].lower() == 'income':  # Assuming type is at index 3
+            total_income += amount
+        else:
+            total_expenses += amount
+            category = transaction['category']  # Assuming category is at index 5
+            category_spending[category] += amount
+    
+    net_savings = total_income - total_expenses
+    
+    # Calculate top spending categories
+    total_spending = sum(category_spending.values())
+    top_categories = []
+    if total_spending > 0:
+        top_categories = sorted(
+            [(cat, (amt/total_spending)*100) for cat, amt in category_spending.items()],
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]  # Get top 3 categories
+    
+    return {
+        "total_income": total_income,
+        "total_expenses": total_expenses,
+        "net_savings": net_savings,
+        "top_spending_categories": top_categories
+    }
+
+# def assesment_agent(transaction_history,client):
+#     prompt = f"""
+#     Analyze this transaction history for the past month and provide an Assessment of spending health (Good/Moderate/Poor)
+
+#     Transaction History: [(date, type, reason, category, amount )]
+#     {transaction_history}
+
+#     Just give me a text response
+#     """
+    
+#     completion = client.chat.completions.create(
+#         model="writer/palmyra-fin-70b-32k",
+#         messages=[{"role": "user", "content": prompt}],
+#         temperature=0.1,  # Lower for more factual analysis
+#         response_format={"type": "json_object"}
+#     )
+#     return completion.choices[0].message.content
+
+def recommendations_agent(transaction_history,client):
+    prompt = f"""
+    Analyze this transaction history for the past month and provide specific optimization recommendations and Any urgent alerts
+
+    Transaction History: [(date, type, reason, category, amount )]
     {transaction_history}
 
-    Respond in this JSON format:
-    {{
-        "summary": {{
-            "total_income": float,
-            "total_expenses": float,
-            "net_savings": float,
-            "top_spending_categories": [("category", percentage),...]
-        }},
-        "assessment": "text",
-        "recommendations": ["text",...],
-        "alerts": ["text",...]
-    }}
+    Just give me a text response in this format
+    recomendation1,recomendation2,recomendation3,...|alert1,alert2,alert3,...
     """
     
     completion = client.chat.completions.create(
@@ -31,44 +70,44 @@ def budget_analyst_agent(transaction_history,client):
         temperature=0.1,  # Lower for more factual analysis
         response_format={"type": "json_object"}
     )
-    return json.loads(completion.choices[0].message.content)
+
+    recomendations, alerts = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|") 
+    return recomendations.split(","),alerts.split(",")
+
+# def alert_agent(transaction_history,client):
+#     prompt = f"""
+#     Analyze this transaction history for the past month and provide Any urgent alerts
+
+#     Transaction History: [(date, type, reason, category, amount )]
+#     {transaction_history}
+
+#     Just give me a text response seperated by commas
+#     """
+    
+#     completion = client.chat.completions.create(
+#         model="writer/palmyra-fin-70b-32k",
+#         messages=[{"role": "user", "content": prompt}],
+#         temperature=0.1,  # Lower for more factual analysis
+#         response_format={"type": "json_object"}
+#     )
+#     return completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split(",")
+
+def budget_analyst_agent(transaction_history,clients):
+    """Analyzes past month's spending patterns and gives recommendations"""
+    data = []
+    for txn in transaction_history:
+        data.append((txn['date'],txn['type'],txn['reason'],txn['category'],txn['amount']))
+
+    r,a = recommendations_agent(data,clients[1])
+    return {
+        "summary": calculate_financial_summary(transaction_history),
+        "assessment": "",
+        "recommendations": r,
+        "alerts": a
+    }
 
 # import json
-# from collections import defaultdict
 
-# def calculate_financial_summary(transaction_history):
-#     """Manually calculates financial metrics from transaction history"""
-#     total_income = 0.0
-#     total_expenses = 0.0
-#     category_spending = defaultdict(float)
-    
-#     for transaction in transaction_history:
-#         amount = transaction['amount']  # Assuming amount is the last element
-#         if transaction['type'].lower() == 'income':  # Assuming type is at index 3
-#             total_income += amount
-#         else:
-#             total_expenses += amount
-#             category = transaction['category']  # Assuming category is at index 5
-#             category_spending[category] += amount
-    
-#     net_savings = total_income - total_expenses
-    
-#     # Calculate top spending categories
-#     total_spending = sum(category_spending.values())
-#     top_categories = []
-#     if total_spending > 0:
-#         top_categories = sorted(
-#             [(cat, (amt/total_spending)*100) for cat, amt in category_spending.items()],
-#             key=lambda x: x[1],
-#             reverse=True
-#         )[:3]  # Get top 3 categories
-    
-#     return {
-#         "total_income": total_income,
-#         "total_expenses": total_expenses,
-#         "net_savings": net_savings,
-#         "top_spending_categories": top_categories
-#     }
 
 # def get_spending_assessment(client, summary):
 #     """Gets spending health assessment from LLM"""

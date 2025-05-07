@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, JSON, D
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime, timezone
 import enum
 import uuid
@@ -22,6 +22,7 @@ class Gender(enum.Enum):
     FEMALE = "female"
     UNDEFINED = "undefined"
 
+
 class AssetStatus(enum.Enum):
     PENDING = "Pending"  # Symbol added but model not trained
     ACTIVE = "Active"  # Model trained; available for prediction and portfolios
@@ -34,6 +35,7 @@ class AssetStatus(enum.Enum):
     ACTIVE = "Active"  # Model trained; available for prediction and portfolios
     WARNING = "Warning"  # Shows in dashboards but excluded from portfolios
     BLACKLIST = "BlackList"  # Hidden from everything
+
 
 class UserModel(Base):
     __tablename__ = "users"
@@ -118,6 +120,7 @@ class PredictionModel(Base):
     is_active = Column(Boolean, default=True)
     model_location = Column(Text)
     scaler_location = Column(Text)
+    trained_upto_date = Column(Date, nullable=True)
 
     # Relationships
     target_stock = relationship("Stock", back_populates="prediction_models")
@@ -186,6 +189,9 @@ class NewsRiskAnalysis(Base):
     stock = relationship("Stock", back_populates="news_risk_analysis")
 
 
+from sqlalchemy import Text
+
+
 class QuantitativeRiskAnalysis(Base):
     __tablename__ = "quantitative_risk_analysis"
 
@@ -200,14 +206,18 @@ class QuantitativeRiskAnalysis(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
+    response = Column(JSONB, nullable=True)
+
     stock = relationship("Stock", back_populates="quantitative_risk_analysis")
 
     def __repr__(self):
         return f"<QuantitativeRiskAnalysis(analysis_id={self.analysis_id}, volatility={self.volatility})>"
 
-class TransactionType(str,enum.Enum):
+
+class TransactionType(str, enum.Enum):
     income = "income"
     expense = "expense"
+
 
 class BudgetGoal(Base):
     __tablename__ = "budget_goal"
@@ -225,6 +235,7 @@ class BudgetGoal(Base):
 
     def __repr__(self):
         return f"<BudgetGoal(id={self.id}, title='{self.title}', amount={self.amount})>"
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
