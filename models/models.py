@@ -119,13 +119,14 @@ class PredictionModel(Base):
     model_location = Column(Text)
     scaler_location = Column(Text)
     trained_upto_date = Column(Date, nullable=True)
-    
+
     # Relationships
     target_stock = relationship("Stock", back_populates="prediction_models")
     predictions = relationship("StockPrediction", back_populates="model")
 
     def __repr__(self):
         return f"<PredictionModel(model_id={self.model_id}, version='{self.model_version}', active={self.is_active})>"
+
 
 
 class StockPrediction(Base):

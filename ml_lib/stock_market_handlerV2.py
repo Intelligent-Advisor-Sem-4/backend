@@ -198,13 +198,14 @@ def addcompany(company,db=None):
         return stock
 
 
-def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_location):
+def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_location,last_date):
     with get_db_context() as db:
         stock = addcompany(stock_symbol,db)
         existing_model = db.query(PredictionModel).filter(PredictionModel.target_stock_id == stock.stock_id).first()
 
         if existing_model:
             existing_model.latest_modified_time = datetime.utcnow()
+            existing_model.trained_upto_date = last_date
             db.commit()
             print(f"Updated last_modified_time for model {existing_model.model_id}.")
             return  existing_model
@@ -217,7 +218,8 @@ def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_locati
                 rmse=rmse,
                 is_active=True,
                 model_location=model_location,
-                scaler_location=scaler_location
+                scaler_location=scaler_location,
+                trained_upto_date=last_date
             )
             db.add(model)
             db.commit()
@@ -271,3 +273,5 @@ def get_model_details(stock_symbol):
         else:
             return None
 
+
+# def invoke_prediction(symbol,date):
