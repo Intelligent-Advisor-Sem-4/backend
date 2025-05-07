@@ -37,7 +37,7 @@ class RiskAnalysis:
         self.stock = get_stock_by_ticker(db, ticker)
         self.ticker_data = ticker_data
         self.news_service = NewsSentimentService(self.db, self.ticker, self.ticker_data)
-        self.quant_service = QuantitativeRiskService(self.db, ticker=self.ticker, ticker_data=self.ticker_data )
+        self.quant_service = QuantitativeRiskService(self.db, ticker=self.ticker, ticker_data=self.ticker_data)
         self.anomaly_service = AnomalyDetectionService(self.ticker, self.ticker_data)
         self.esg_service = ESGDataService(self.ticker, self.ticker_data)
 

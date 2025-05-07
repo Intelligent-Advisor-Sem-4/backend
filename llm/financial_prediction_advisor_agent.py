@@ -30,7 +30,7 @@ def generate_analysis_phase(predictions,transactions, client):
     Last Month Transaction Data [(date, type, reason, category, amount )]: {data}
 
     Respond text should be in following format:
-    observation1,observation2|daily_action|weekly_action|monthly_action|risk1,risk2|long_term_insight1,long_term_insight2
+    observations,...|daily_action|weekly_action|monthly_action|risks,...|long_term_insights,...
 
     RULES:
     1. Use direct commands ("Do X" not "Consider Y")
@@ -43,11 +43,30 @@ def generate_analysis_phase(predictions,transactions, client):
         messages=[{"role": "user", "content": prompt}],
         max_tokens=512,
         temperature=0.1,  # Lower temperature for more predictable output
-        response_format={"type": "json_object"}
+        response_format={"type": "text"}
     )
     
     res = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|")
+
     print("Raw Analysis Output:", res)
+
+    # prompt = f"""
+    # Given text should be converted to the following text struture
+    # given text: {res}
+    # response structure:
+    # observations,...|daily_action|weekly_action|monthly_action|risks,...|long_term_insights,...
+    # """
+    
+    # completion = client.chat.completions.create(
+    #     model="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    #     messages=[{"role": "user", "content": prompt}],
+    #     max_tokens=512,
+    #     temperature=0.1,  # Lower temperature for more predictable output
+    #     response_format={"type": "text"}
+    # )
+    
+    # res = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|")
+    # print("Raw Analysis Output2:", res)
     
     # Validate JSON structure before returning
     # parsed = json.loads(result)
@@ -55,7 +74,7 @@ def generate_analysis_phase(predictions,transactions, client):
     #                 "monthly_actions", "risks", "long_term_insights"}
     # if not required_keys.issubset(parsed.keys()):
     #     raise ValueError("Missing required keys in analysis response")
-    
+     
     return {
         "observations": res[0].split(","),
         "daily_actions": res[1].split(","),
