@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import List
 from sqlalchemy import func
 
-from models.models import Transaction as TransactionModel, BudgetGoal as BudgetGoalModel
+from models.models import Transaction as TransactionModel, BudgetGoal as BudgetGoalModel, UserModel
 from services.budget_service.schemas import (
     TransactionCreate,
     TransactionUpdate,
@@ -16,6 +16,9 @@ from services.budget_service.schemas import (
     MessageResponse,
     CategorySpending
 )
+
+def getAllUsers(db: Session):
+    return db.query(UserModel).all()
 
 def get_transactions_by_user(db: Session, user_id: str) -> List[TransactionSchema]:
     return db.query(TransactionModel)\
