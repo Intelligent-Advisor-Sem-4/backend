@@ -227,3 +227,46 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
 #     #fetch_and_store_ticker_details()
 #     print(get_stock_history(1,"2021-10-21","2022-04-12"))
 #     None
+
+
+
+def get_model_details(ticker_symbol: str):
+    """
+    Fetch details of the prediction model for the given ticker symbol.
+    Args:
+        ticker_symbol (str): The stock ticker symbol.
+    Returns:
+        dict: A dictionary containing model_version, latest_modified_time, and rmse, or None if not found.
+    """
+    session = next(get_db())
+    try:
+        # Query the stock by ticker symbol
+        stock = session.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
+        if not stock:
+            return {"error": f"Stock with ticker symbol '{ticker_symbol}' not found."}
+
+        # Query the prediction model for the stock
+        model = (
+            session.query(PredictionModel)
+            .filter(PredictionModel.target_stock_id == stock.stock_id, PredictionModel.is_active == True)
+            .order_by(PredictionModel.latest_modified_time.desc())
+            .first()
+        )
+        if not model:
+            return {"error": f"No active prediction model found for stock '{ticker_symbol}'."}
+
+        return {
+            "ticker": ticker_symbol,
+            "model_version": model.model_version,
+            "latest_modified_time": str(model.latest_modified_time) if model.latest_modified_time else None,
+            "rmse": float(model.rmse) if model.rmse is not None else None,
+            "trained_upto_date": str(model.trained_upto_date) if model.trained_upto_date else None
+        }
+    except Exception as e:
+        print(f"Error in get_model_details: {str(e)}")
+        return {"error": f"An error occurred while fetching model details: {str(e)}"}
+    finally:
+        session.close()
+
+
+

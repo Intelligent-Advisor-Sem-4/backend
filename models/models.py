@@ -118,7 +118,8 @@ class PredictionModel(Base):
     is_active = Column(Boolean, default=True)
     model_location = Column(Text)
     scaler_location = Column(Text)
-
+    trained_upto_date = Column(Date, nullable=True)
+    
     # Relationships
     target_stock = relationship("Stock", back_populates="prediction_models")
     predictions = relationship("StockPrediction", back_populates="model")

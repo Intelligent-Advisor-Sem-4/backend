@@ -35,3 +35,7 @@ class StockPriceHistoricalType(BaseModel):
     close_price: float
     volume: int
     fetched_at: str
+    
+    
+class ModelDetails(BaseModel):
+    ticker: str
