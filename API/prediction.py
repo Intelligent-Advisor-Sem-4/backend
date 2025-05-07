@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException,APIRouter
 from pydantic import BaseModel
 from ml_lib.stock_predictor import predict
+from ml_lib.pricepredictionretriver import getPredictedPricesFromDB
 from ml_lib.stock_predictorV2 import predictV2
 from ml_lib.controllers import get_stock_options,get_stock_history,get_predictions
 from classes.prediction import InData,getstockhist,getpredictprice
@@ -22,6 +23,14 @@ async def getallsymbols():
     if not symbols:
         raise HTTPException(status_code=404, detail="No stock symbols found.")
     return {"symbols": symbols}
+
+
+@router.get("/getpredictedprices")
+async def getpredictedpricesfromDB(ticker_symbol: str, date: str):
+    prices = getPredictedPricesFromDB(ticker_symbol, date)
+    if prices is None:
+        raise HTTPException(status_code=404, detail="No predicted prices found for this ticker symbol and date.")
+    return {"predicted_prices": prices}
 
 @router.post("/V2/predict")
 async def get_prediction(data: InData):
