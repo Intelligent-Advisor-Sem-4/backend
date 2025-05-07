@@ -144,8 +144,8 @@ def predict(company_name, date):
         if(model_detail.model_id!=None):
             print(model_detail.model_id)
             for i in range(len(prediction)):
-                output[last_date+timedelta(days=i)]=float(prediction[i])
-                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i),predicted_price=float(prediction[i]))
+                output[last_date+timedelta(days=i+1)]=float(prediction[i])
+                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i+1),predicted_price=float(prediction[i]))
         return output
 
 

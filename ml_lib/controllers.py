@@ -4,7 +4,7 @@ from models.models import Stock, AssetStatus, PredictionModel, StockPrediction
 import yfinance as yf
 import requests
 import pandas as pd
-from ml_lib.stock_predictor import getStockData
+from ml_lib.stock_predictor import getStockData,predict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
@@ -84,7 +84,25 @@ def getPredictedPricesFromDB(ticker_symbol, date):
         session.close()
 
 
-
+def getlast_date(symbol):
+    """
+    Get the last available date for the given stock ticker symbol using yfinance.
+    Args:
+        symbol (str): The stock ticker symbol.
+    Returns:
+        str: The last available date in YYYY-MM-DD format, or None if not found.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        history = ticker.history(period="1d")
+        if not history.empty:
+            last_date = history.index[-1].date()
+            return str(last_date)
+        else:
+            return None
+    except Exception as e:
+        print(f"Error fetching last date for symbol '{symbol}': {e}")
+        return None
 
 def get_stock_history(s_date, e_date, st_id=None, st_sym=None):
     ticker_symbol = None
@@ -130,6 +148,9 @@ def get_db_local():
 def get_predictions(ticker_symbol,starting_date, ending_date):
     history_data = get_stock_history(starting_date,ending_date,st_sym=ticker_symbol)["history"]
     last_date = history_data[-1]["date"]
+    available_date = getlast_date(ticker_symbol)
+    
+    #if (available_date<ending_date)
     with get_db_local() as db:
         # Query the stock by ticker symbol
         stock = db.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
@@ -142,16 +163,36 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
             return {"error": f"No prediction model found for stock '{ticker_symbol}'."}
 
         # Query predictions from the StockPrediction table
+
         predictions = (
             db.query(StockPrediction)
             .filter(
                 StockPrediction.model_id == model.model_id,
-                StockPrediction.predicted_date > last_date
+                StockPrediction.predicted_date > last_date,
+                StockPrediction.predicted_date <= (datetime.strptime(last_date, "%Y-%m-%d").date() + timedelta(days=7))
             )
             .order_by(StockPrediction.predicted_date.asc())
             .limit(7)  # Fetch a maximum of 7 predictions
             .all()
         )
+        if(len(predictions)<7):
+
+            if(available_date>=ending_date):
+                predict(ticker_symbol,ending_date)
+                predictions = (
+                    db.query(StockPrediction)
+                    .filter(
+                        StockPrediction.model_id == model.model_id,
+                        StockPrediction.predicted_date > last_date,
+                        StockPrediction.predicted_date <= (datetime.strptime(last_date, "%Y-%m-%d").date() + timedelta(days=7))
+                    )
+                    .order_by(StockPrediction.predicted_date.asc())
+                    .limit(7)  # Fetch a maximum of 7 predictions
+                    .all()
+                )
+            elif(len(predictions)==0):
+                return {"error":f"give the date before to {available_date}"}
+                
 
         # Format the predictions into a list of dictionaries
     
