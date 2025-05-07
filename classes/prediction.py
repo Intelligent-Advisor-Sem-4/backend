@@ -4,10 +4,14 @@ class InData(BaseModel):
     date: str
 
 class getstockhist(BaseModel):
-    startingdate: str
-    endingdate: str
+    starting_date: str
+    ending_date: str
     symbol: str
 
+class getpredictprice(BaseModel):
+    ticker_symbol: str
+    starting_date: str
+    ending_date: str
 
 class StockHistoryItem(BaseModel):
     date: str
