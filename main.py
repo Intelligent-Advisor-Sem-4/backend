@@ -50,6 +50,7 @@ app.include_router(risk_analyser.router)
 app.include_router(explain_portfolio.router)
 
 
+
 @app.get("/")
 def welcome():
     return "Welcome to Financial Advisor sem 4! Still Testing ! Test -1000 "
