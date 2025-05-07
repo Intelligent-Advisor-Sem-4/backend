@@ -24,7 +24,7 @@ async def getallsymbols():
     return {"symbols": symbols}
 
 
-@router.get("/get-predicted-prices")
+@router.post("/get-predicted-prices")
 async def getpredictedpricesfromDB(data:InData):
     prices = getPredictedPricesFromDB(data.company, data.date)
     if prices is None:
@@ -39,14 +39,14 @@ async def getpredictedpricesfromDB(data:InData):
 #         raise HTTPException(status_code=400, detail="Prediction could not be made. Check the company name or date.")
 #     return {"predictions": list(result)}
 
-@router.get("/get-stock-history")
+@router.post("/get-stock-history")
 async def get_stock_data1(data: getstockhist):
     stock_data = get_stock_history(data.starting_date,data.ending_date,st_sym=data.symbol)
     if not stock_data:
         raise HTTPException(status_code=404, detail="Stock data not found.")
     return stock_data
 
-@router.get("/V2/get-predicted-prices")
+@router.post("/V2/get-predicted-prices")
 async def get_predicted_price(data:getpredictprice):
 
     result = get_predictions(data.ticker_symbol, data.starting_date, data.ending_date)
