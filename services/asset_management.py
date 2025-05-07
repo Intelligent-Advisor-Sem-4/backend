@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
+from services.email_service.email_service import send_email_notification
 from services.utils import calculate_shallow_risk_score
 
 
@@ -36,6 +37,21 @@ def create_stock(db: Session, symbol: str) -> Stock:
             industryDisp=info.get("industryDisp"),
             status=AssetStatus.PENDING,
         )
+
+        # Send email notification
+        company_name = stock.asset_name
+        email_subject = f"New Stock Added: {symbol}"
+        email_message = f"""
+A new stock has been added to the database:
+
+Ticker: {symbol}
+Name: {company_name}
+Exchange: {stock.exchange}
+
+Initiate the model training process for this stock.
+Change the status to 'ACTIVE' when ready.
+"""
+        send_email_notification(email_subject, email_message)
 
         db.add(stock)
         db.commit()
