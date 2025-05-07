@@ -54,7 +54,6 @@ def transaction_categorizer_agent(description, amount, transaction_type,client):
         "amount": original_amount,
         "type": "income/expense",
         "category": "determined_category",
-        "confidence": "High/Medium/Low"
     }}
     """
     
