@@ -11,7 +11,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 from datetime import datetime, timedelta
-from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details
+from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,store_prediction
 
 def get_all_available_companies():
     url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
@@ -127,6 +127,8 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
 #         continue
 #     trainer(i)
 
+# trainer('AAPL')
+
 
 def predict(company_name, date):
     input_dim = 90
@@ -149,16 +151,16 @@ def predict(company_name, date):
     with open(scaler_file, "rb") as f:
         scaler = pickle.load(f)
 
-        ticker = yf.Ticker(company_name)
-        historical_data = ticker.history(period="max")
-        if date not in historical_data.index:
-            print(f"Date {date} not found in historical data for {company_name}.")
-            return None
+        # ticker = yf.Ticker(company_name)
+        # historical_data = ticker.history(period="max")
+        # if date not in historical_data.index:
+        #     print(f"Date {date} not found in historical data for {company_name}.")
+        #     return None
 
-        date_index = historical_data.index.get_loc(date)
-        if date_index < input_dim:
-            print(f"Not enough data before {date} to make a prediction.")
-            return None
+        # date_index = historical_data.index.get_loc(date)
+        # if date_index < input_dim:
+        #     print(f"Not enough data before {date} to make a prediction.")
+        #     return None
 
         previous_data = getStockData(company_name,ending_date=date,size=input_dim)['Close']
         last_date = previous_data.index[-1].date()
@@ -175,14 +177,18 @@ def predict(company_name, date):
         # actual_prices = actual_prices[:len(prediction)]  # Match the length of predictions
         output = {}
         print(len(prediction))
-        for i in range(len(prediction)):
-            output[last_date+timedelta(days=i)]=float(prediction[i])
+        if(model_detail.model_id!=None):
+            print(model_detail.model_id)
+            for i in range(len(prediction)):
+                output[last_date+timedelta(days=i)]=float(prediction[i])
+                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i),predicted_price=float(prediction[i]))
         print("Predicted Prices:")
         print(output)
+
         # print("\nActual Prices:")
         # print(actual_prices.values)
         return output
 
 
-predict('AMD',"2022-04-20")
+
 
