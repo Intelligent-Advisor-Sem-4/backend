@@ -111,8 +111,8 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, 
     }
 
 
-# def parse_gemini_response(response) -> Dict[str, Any]:
-#     """Parse and clean Gemini's response"""
+# def parse_llm_response(response) -> Dict[str, Any]:
+#     """Parse and clean llm's response"""
 #     import json
 #     response_text = response.text.strip()
 #
@@ -135,12 +135,12 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, 
 #
 #     return sentiment_data
 
-def parse_gemini_json_response(response_text: str) -> dict:
+def parse_llm_json_response(response_text: str) -> dict:
     """
-    Parse JSON response from Gemini API, handling different response formats.
+    Parse JSON response from llm API, handling different response formats.
 
     Args:
-        response_text (str): The raw text response from Gemini
+        response_text (str): The raw text response from llm
 
     Returns:
         dict: Parsed JSON content
@@ -325,3 +325,34 @@ def calculate_shallow_risk(s):
         debt_to_equity=s.get("debtToEquity"),
         beta=s.get("beta")
     )
+
+
+def calculate_volume_change(hist, info):
+    """Calculate volume change using available metrics or historical data."""
+    # Try to use info metrics first (more reliable)
+    avg_volume = info.get('averageVolume')
+    current_volume = info.get('regularMarketVolume')
+
+    # If both metrics are available from info, use them
+    if avg_volume and current_volume and avg_volume > 0:
+        volume_change = ((current_volume / avg_volume) - 1) * 100
+        return volume_change
+
+    # Try alternate volume metrics if available
+    avg_volume_10day = info.get('averageVolume10days') or info.get('averageDailyVolume10Day')
+    if avg_volume_10day and current_volume and avg_volume_10day > 0:
+        volume_change = ((current_volume / avg_volume_10day) - 1) * 100
+        return volume_change
+
+    # Fall back to historical calculation if needed
+    if not hist.empty and 'Volume' in hist.columns:
+        # Calculate from historical data
+        avg_volume = hist['Volume'].mean()
+        recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days
+
+        if avg_volume > 0:
+            volume_change = ((recent_volume / avg_volume) - 1) * 100
+            return volume_change
+
+    # If we couldn't calculate it with any method
+    return None

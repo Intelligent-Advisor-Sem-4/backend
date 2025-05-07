@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+from models.models import AssetStatus
 
 
 class Input(BaseModel):
@@ -10,3 +11,13 @@ class Input(BaseModel):
     investment_amount: float
     target_amount: float
     years: float
+
+class Ticker(BaseModel):
+    ticker_symbol: str
+    asset_name: Optional[str] = None
+    sectorDisp: Optional[str] = None
+    currency:str
+    status:AssetStatus
+
+class Tickers(BaseModel):
+    tickers: List[Ticker]

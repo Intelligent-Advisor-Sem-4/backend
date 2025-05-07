@@ -23,6 +23,7 @@ DB_PORT = os.getenv("DB_PORT")
 # Create PostgresSQL connection URL
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -110,7 +111,7 @@ def reset_database():
     seed_database()
     print("Database reset successfully.")
 
-
+# reset_database()
 if __name__ == "__main__":
     # Uncomment the following line to reset the database
     reset_database()

@@ -11,38 +11,40 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 from datetime import datetime, timedelta
-
-def get_all_available_companies():
-    url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = pd.read_csv(url)
-        print("Available columns in the dataset:", data.columns)
-        return data['Symbol'].tolist()
-    else:
-        print("Failed to fetch company data.")
-        return []
+from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,store_prediction,get_all_available_companies
 
 
-def getStockData(company,ending_date=None,size=None):
-    response = yf.Ticker(company).history(period = 'max',interval='1d')
-    if(ending_date == None):
-        if(size==None):
-            return response
-        else:
-            return response.tail(size)
-    else:
-        if(size==None):
-            return response.loc[response.index<ending_date]
-        else:
-            return response.loc[response.index<ending_date].tail(size)
+
+# def getStockData(company, starting_date=None, ending_date=None, size=None):
+#     response = yf.Ticker(company).history(period='max', interval='1d')
+#     if starting_date:
+#         response = response.loc[response.index >= starting_date]
+#     if ending_date:
+#         response = response.loc[response.index <= ending_date]
+#     if size:
+#         return response.tail(size)
+#     return response
+
+
+def getStockData(company, starting_date=None, ending_date=None, size=None):
+    response = yf.Ticker(company).history(period='max', interval='1d')
+    last_close_price = response['Close'].iloc[-1] if not response.empty else None
+    next_last_close_price = response['Close'].iloc[-2] if len(response) > 1 else None
+    perce = ((last_close_price-next_last_close_price)/next_last_close_price)*100
+    if starting_date:
+        response = response.loc[response.index >= starting_date]
+    if ending_date:
+        response = response.loc[response.index <= ending_date]
+    if size:
+        return response.tail(size)
+    last_date = response.index[-1] if not response.empty else None
+    return [response,last_close_price,perce,last_date]
 
 def trainer(company_name,batch=32,input_dim=90,lc=128):
-    close_prices_b = getStockData(company_name)['Close'].values
+    stdata = getStockData(company_name)
+    close_prices_b = stdata[0]['Close'].values
     scaler = MinMaxScaler()
     output_dim = 7
-    close_prices_mean = np.mean(close_prices_b)
-    close_prices_std = np.std(close_prices_b)
     close_prices = scaler.fit_transform(close_prices_b.reshape(-1,1))
     try:
 
@@ -54,20 +56,9 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         X = np.array(X).reshape(-1, input_dim, 1)
         Y = np.array(Y)
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.05, shuffle=False)
-
-
-
-
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.LSTM(lc,input_shape=(input_dim, 1)))
         model.add(tf.keras.layers.Dense(output_dim))
-
-
-
-
-
-
-
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='mse')
         model.summary()
         early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss',patience=10,restore_best_weights=True,verbose=1)
@@ -87,7 +78,6 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         with open(scaler_file, "wb") as f:
             pickle.dump(scaler, f)
         print(f"Scaler saved as '{scaler_file}'")
-        # print(f"Statistics saved as '{stats_file}'")
         model_path = os.path.join("ml_lib",models_folder, f"{company_name}_trained_model.keras")
         model.save(model_path)
         print(f"Model saved as '{model_path}'")
@@ -102,29 +92,36 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         #     plt.legend()
         #     plt.grid()
         #     plt.show()
+        model_regiterer(company_name,time_step=90,rmse=final_rmse,model_location=model_path,scaler_location=scaler_file,last_date=stdata[-1])
         return model,final_rmse
     except Exception as err:
         print(f"An error occurred: {err}")
+
+# data = yf.download(get_all_available_companies()[:25], group_by='ticker', period='max', threads=False)
+
 # for i in get_all_available_companies()[:25]:
 #     models_folder = "trainedModels"
-#     model_path = os.path.join(models_folder, f"{i}_trained_model.h5")
-#     if os.path.exists(model_path):
+#     model_path = os.path.join("ml_lib",models_folder, f"{i}_trained_model.keras")
+#     if os.path.exists(model_path) and get_model_details(i)!=None:
 #         print(f"Model for {i} already exists. Skipping training.")
 #         continue
 #     trainer(i)
 
+# trainer('AAPL')
+
+
 def predict(company_name, date):
     input_dim = 90
-    output_dim = 7
-    models_folder = "trainedModels"
     print(company_name,date)
-    model_path = os.path.join("ml_lib",models_folder, f"{company_name}_trained_model.keras")
-
+    model_detail = get_model_details(company_name)
+    if model_detail == None:
+        return None
+    model_path = model_detail.model_location
     if not os.path.exists(model_path):
-        print(f"Model or stats file for {company_name} not found.")
+        print(f"Model file for {company_name} not found.")
         return None
     model = tf.keras.models.load_model(model_path)
-    scaler_file = os.path.join("ml_lib",models_folder, f"{company_name}_scaler.pkl")
+    scaler_file = model_detail.scaler_location
     if not os.path.exists(scaler_file):
         print(f"Scaler file for {company_name} not found.")
         return None
@@ -132,18 +129,7 @@ def predict(company_name, date):
     with open(scaler_file, "rb") as f:
         scaler = pickle.load(f)
 
-        ticker = yf.Ticker(company_name)
-        historical_data = ticker.history(period="max")
-        if date not in historical_data.index:
-            print(f"Date {date} not found in historical data for {company_name}.")
-            return None
-
-        date_index = historical_data.index.get_loc(date)
-        if date_index < input_dim:
-            print(f"Not enough data before {date} to make a prediction.")
-            return None
-
-        previous_data = getStockData(company_name,date,input_dim)['Close']
+        previous_data = getStockData(company_name,ending_date=date,size=input_dim)['Close']
         last_date = previous_data.index[-1].date()
         previous_data = previous_data.values
         print(last_date)
@@ -152,20 +138,16 @@ def predict(company_name, date):
         previous_data = scaler.transform(previous_data.reshape(-1, 1)).reshape(1, input_dim, 1)
 
         prediction = model.predict(previous_data)
-        prediction = scaler.inverse_transform(prediction.reshape(-1, 1)).flatten()  # Inverse transform predictions
-
-        # actual_prices = historical_data['Close'].iloc[date_index:date_index + output_dim]
-        # actual_prices = actual_prices[:len(prediction)]  # Match the length of predictions
+        prediction = scaler.inverse_transform(prediction.reshape(-1, 1)).flatten()
         output = {}
         print(len(prediction))
-        for i in range(len(prediction)):
-            output[last_date+timedelta(days=i)]=float(prediction[i])
-        print("Predicted Prices:")
-        print(output)
-        # print("\nActual Prices:")
-        # print(actual_prices.values)
+        if(model_detail.model_id!=None):
+            print(model_detail.model_id)
+            for i in range(len(prediction)):
+                output[last_date+timedelta(days=i+1)]=float(prediction[i])
+                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i+1),predicted_price=float(prediction[i]))
         return output
 
 
-# predict('AAPL',"2022-04-20")
+
 
