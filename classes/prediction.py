@@ -8,6 +8,10 @@ class getstockhist(BaseModel):
     endingdate: str
     symbol: str
 
+class getpredictprice(BaseModel):
+    ticker_symbol: str
+    starting_date: str
+    ending_date: str
 
 class StockHistoryItem(BaseModel):
     date: str

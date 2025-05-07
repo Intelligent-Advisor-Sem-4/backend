@@ -45,7 +45,8 @@ def getStockDataV2(company, starting_date=None, ending_date=None, size=None):
         response = response.loc[response.index <= ending_date]
     if size:
         return response.tail(size)
-    return [response,last_close_price,perce]
+    last_date = response.index[-1] if not response.empty else None
+    return [response,last_close_price,perce,last_date]
 
 def trainer(company_name,batch=32,input_dim=90,lc=128):
     close_prices_b = getStockData(company_name)['Close'].values
