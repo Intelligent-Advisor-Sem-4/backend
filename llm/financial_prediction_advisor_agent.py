@@ -30,7 +30,7 @@ def generate_analysis_phase(predictions,transactions, client):
     Last Month Transaction Data [(date, type, reason, category, amount )]: {data}
 
     Respond text should be in following format:
-    observation1,observation2,observation3,...|daily_action1,daily_action2,daily_action3,...|weekly_action1,weekly_action2,weekly_action3,...|monthly_action1,monthly_action2,monthly_action3,...|risk1,risk2,risk3,...|long_term_insight1,long_term_insight2,long_term_insight3,...
+    observation1,observation2|daily_action|weekly_action|monthly_action|risk1,risk2|long_term_insight1,long_term_insight2
 
     RULES:
     1. Use direct commands ("Do X" not "Consider Y")
