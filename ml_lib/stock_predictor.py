@@ -28,6 +28,7 @@ from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,stor
 
 def getStockData(company, starting_date=None, ending_date=None, size=None):
     response = yf.Ticker(company).history(period='max', interval='1d')
+    print(response.tail())
     last_close_price = response['Close'].iloc[-1] if not response.empty else None
     next_last_close_price = response['Close'].iloc[-2] if len(response) > 1 else None
     perce = ((last_close_price-next_last_close_price)/next_last_close_price)*100
