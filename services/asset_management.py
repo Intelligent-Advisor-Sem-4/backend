@@ -92,6 +92,7 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
         # Get risk score using the analyzer
         analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
         risk_update = analyser.get_risk_score_and_update()
+        # print('Retrieving risk score for stock:', stock.ticker_symbol)
 
         # Create response model using the RiskScoreUpdate object
         result.append(
@@ -100,6 +101,7 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
                 ticker_symbol=str(stock.ticker_symbol),
                 asset_name=str(stock.asset_name) if stock.asset_name else None,
                 risk_score=float(risk_update.risk_score) if risk_update.risk_score else None,
+                # risk_score=float(stock.risk_score) if stock.risk_score else None,
                 risk_score_updated=stock.risk_score_updated.isoformat() if stock.risk_score_updated else None,
                 status=AssetStatus(stock.status) if stock.status else None,  # Convert to AssetStatus enum
                 currency=str(stock.currency) if stock.currency else None,

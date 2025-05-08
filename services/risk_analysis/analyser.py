@@ -155,7 +155,7 @@ class RiskAnalysis:
                 self.stock.risk_score is not None and
                 self.stock.risk_score_updated and
                 datetime.now() - self.stock.risk_score_updated < timedelta(days=1)):
-
+            print('Returning cached risk score for', self.ticker)
             return {
                 "symbol": self.ticker,
                 "risk_score": self.stock.risk_score,
@@ -163,6 +163,7 @@ class RiskAnalysis:
             }
         else:
             # Calculate risk score
+            print('Calculating new risk score for', self.ticker)
             risk_score = calculate_shallow_risk_score(
                 market_cap=self.ticker_data.info.get("marketCap"),
                 high=self.ticker_data.info.get("fiftyTwoWeekHigh"),
