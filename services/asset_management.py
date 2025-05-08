@@ -90,7 +90,7 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
     result = []
     for stock in stocks:
         # Get risk score using the analyzer
-        analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db)
+        analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
         risk_update = analyser.get_risk_score_and_update()
 
         # Create response model using the RiskScoreUpdate object

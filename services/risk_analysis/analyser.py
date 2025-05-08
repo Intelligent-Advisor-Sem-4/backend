@@ -24,10 +24,11 @@ from classes.Risk_Components import (
 
 
 class RiskAnalysis:
-    def __init__(self, ticker: str, db: Session):
+    def __init__(self, ticker: str, db: Session, db_stock: Any = None):
         self.ticker = ticker
         self.db = db
         self.risk_components: Dict[str, Any] = {}
+        self.stock = db_stock
 
         ticker_data = yf.Ticker(ticker)
         if ticker_data is None:
@@ -35,7 +36,11 @@ class RiskAnalysis:
         basic_info = ticker_data.fast_info
         if not basic_info:
             raise ValueError(f"No data found for ticker {ticker}.")
-        self.stock = get_stock_by_ticker(db, ticker)
+        if self.stock is None:
+            self.stock = get_stock_by_ticker(db, ticker)
+            if self.stock is None:
+                raise ValueError(f"Stock {ticker} not found in database.")
+
         self.ticker_data = ticker_data
         self.news_service = NewsSentimentService(self.db, self.ticker, self.ticker_data)
         self.quant_service = QuantitativeRiskService(self.db, ticker=self.ticker, ticker_data=self.ticker_data)
