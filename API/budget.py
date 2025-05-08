@@ -51,6 +51,7 @@ async def get_predictions(user_id: str):
     transactions = getTrascationOfMonth(user_id)
     # print(predictions)
     advice,goals = sub_llm.getFinancialAdvice(predictions,transactions)
+    prediction['uid']=user_id
     print(advice)
     print(goals)
     return {
