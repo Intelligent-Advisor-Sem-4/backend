@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
 from services.email_service.email_service import send_email_notification
+from services.risk_analysis.analyser import RiskAnalysis
 from services.utils import calculate_shallow_risk_score
 
 
@@ -88,26 +89,30 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
 
     result = []
     for stock in stocks:
-        # Check if risk_score_updates is older than 1 day
-        if stock.risk_score_updated and (datetime.now() - stock.risk_score_updated).days > 1:
-            t = yf.Ticker(stock.ticker_symbol)
-            info = t.info
-            risk_score = calculate_shallow_risk_score(
-                market_cap=info.get("marketCap"),
-                high=info.get("fiftyTwoWeekHigh"),
-                low=info.get("fiftyTwoWeekLow"),
-                pe_ratio=info.get("forwardPE") or info.get("trailingPE"),
-                eps=info.get("trailingEps"),
-                debt_to_equity=info.get("debtToEquity"),
-                beta=info.get("beta"),
+        # Get risk score using the analyzer
+        analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db)
+        risk_update = analyser.get_risk_score_and_update()
+
+        # Create response model using the RiskScoreUpdate object
+        result.append(
+            StockResponse(
+                stock_id=int(stock.stock_id if stock.stock_id else 0),
+                ticker_symbol=str(stock.ticker_symbol),
+                asset_name=str(stock.asset_name) if stock.asset_name else None,
+                risk_score=float(risk_update.risk_score) if risk_update.risk_score else None,
+                risk_score_updated=stock.risk_score_updated.isoformat() if stock.risk_score_updated else None,
+                status=AssetStatus(stock.status) if stock.status else None,  # Convert to AssetStatus enum
+                currency=str(stock.currency) if stock.currency else None,
+                type=str(stock.type) if stock.type else None,
+                exchange=str(stock.exchange) if stock.exchange else None,
+                sectorKey=str(stock.sectorKey) if stock.sectorKey else None,
+                sectorDisp=str(stock.sectorDisp) if stock.sectorDisp else None,
+                industryKey=str(stock.industryKey) if stock.industryKey else None,
+                industryDisp=str(stock.industryDisp) if stock.industryDisp else None,
+                created_at=stock.created_at.isoformat() if stock.created_at else None,
+                updated_at=stock.updated_at.isoformat() if stock.updated_at else None,
             )
-
-            stock.risk_score = risk_score
-            stock.risk_score_updated = datetime.now()
-            db.commit()
-
-        # Create response model using SQLAlchemy model instance directly
-        result.append(StockResponse.model_validate(stock))
+        )
     return result
 
 

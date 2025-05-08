@@ -4,12 +4,13 @@ from typing import Dict, Any, List
 import yfinance as yf
 from sqlalchemy.orm import Session
 
+from classes.Asset import RiskScoreUpdate
 from db.dbConnect import get_db
 from services.risk_analysis.esg_risk import ESGDataService
 from services.risk_analysis.news_sentiment import NewsSentimentService
 from services.risk_analysis.quantitative_risk import QuantitativeRiskService
 from services.risk_analysis.anomalies import AnomalyDetectionService
-from services.utils import get_stock_by_ticker
+from services.utils import get_stock_by_ticker, calculate_shallow_risk, calculate_shallow_risk_score
 from classes.News import NewsArticle
 from classes.Risk_Components import (
     RiskComponent,
@@ -141,8 +142,8 @@ class RiskAnalysis:
 
         return final_risk_report
 
-    def fast_get_risk_report(self, lookback_days: int = 30) -> Dict[str, Any]:
-        """Generate a fast risk score"""
+    def _fast_get_risk_report(self, lookback_days: int = 30) -> Dict[str, Any]:
+        """Generate a fast risk score (private method)"""
 
         # If risk score present and not older than one day
         if (self.stock is not None and
@@ -153,24 +154,31 @@ class RiskAnalysis:
             return {
                 "symbol": self.ticker,
                 "risk_score": self.stock.risk_score,
+                "updated": False,
             }
         else:
             # Calculate risk score
-            self.risk_components["news_sentiment"] = self.news_service.get_news_sentiment(
-                prefer_newest=False,
-                use_llm=False
+            risk_score = calculate_shallow_risk_score(
+                market_cap=self.ticker_data.info.get("marketCap"),
+                high=self.ticker_data.info.get("fiftyTwoWeekHigh"),
+                low=self.ticker_data.info.get("fiftyTwoWeekLow"),
+                pe_ratio=self.ticker_data.info.get("forwardPE") or self.ticker_data.info.get("trailingPE"),
+                eps=self.ticker_data.info.get("trailingEps"),
+                debt_to_equity=self.ticker_data.info.get("debtToEquity"),
+                beta=self.ticker_data.info.get("beta"),
             )
-            self.risk_components["quantitative"] = self.quant_service.get_quantitative_metrics(
-                lookback_days,
-                use_llm=False
-            )
-            self.risk_components["anomalies"] = self.anomaly_service.detect_anomalies(lookback_days)
-            self.risk_components["esg"] = self.esg_service.get_esg_data()
-            overall_risk = self.calculate_overall_risk()
+
+            # Update the stock's risk score in the database
+            if self.stock:
+                self.stock.risk_score = risk_score
+                self.stock.risk_score_updated = datetime.now()
+                self.db.commit()
+                self.db.refresh(self.stock)
 
             return {
                 "symbol": self.ticker,
-                "risk_score": overall_risk.overall_risk_score,
+                "risk_score": risk_score,
+                "updated": True,
             }
 
     def get_news(self) -> List[NewsArticle]:
@@ -260,6 +268,29 @@ class RiskAnalysis:
             "anomalies": self.get_anomaly_risk(lookback_days=lookback_days),
             "esg": self.get_esg_risk()
         }
+
+    def get_risk_score_and_update(self) -> RiskScoreUpdate:
+        """
+        Get the risk score of the stock and whether it was just updated.
+        Uses cached database score if available and recent,
+        otherwise calculates a new risk score.
+
+        Returns:
+            RiskScoreUpdate: Object containing risk score and update status
+
+        Raises:
+            ValueError: If stock not found in database
+        """
+        if self.stock is None:
+            raise ValueError("Stock not found in database.")
+
+        # Use _fast_get_risk_report which handles caching logic
+        fast_report = self._fast_get_risk_report()
+
+        return RiskScoreUpdate(
+            risk_score=fast_report["risk_score"],
+            was_updated=fast_report["updated"]
+        )
 
 
 if __name__ == "__main__":
