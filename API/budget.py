@@ -50,7 +50,22 @@ async def get_predictions(user_id: str):
     predictions = prediction(user_id)
     transactions = getTrascationOfMonth(user_id)
     # print(predictions)
+    if len(transactions)==0:
+        predictions['uid']=user_id
+        return {
+            "predictions": predictions,
+            "financial_advice": {
+                "observations": "",
+                "daily_actions": "",
+                "weekly_actions": "",
+                "monthly_actions": "",
+                "risks": "",
+                "long_term_insights": ""
+            },
+            "budget_goals": []
+        }
     advice,goals = sub_llm.getFinancialAdvice(predictions,transactions)
+    predictions['uid']=user_id
     print(advice)
     print(goals)
     return {

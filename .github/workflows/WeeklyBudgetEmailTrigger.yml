@@ -1,0 +1,15 @@
+name: Weekly Budget Email Trigger
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every Monday
+    - cron: '0 0 * * 1'
+  workflow_dispatch:  # This enables manual triggering
+
+jobs:
+  trigger-budget-email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Make GET request
+        run: |
+          curl -X GET "http://localhost:8000/budget/email"
