@@ -77,3 +77,8 @@ class StockResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RiskScoreUpdate(BaseModel):
+    risk_score: float
+    was_updated: bool
