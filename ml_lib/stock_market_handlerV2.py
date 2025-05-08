@@ -274,4 +274,3 @@ def get_model_details(stock_symbol):
             return None
 
 
-# def invoke_prediction(symbol,date):

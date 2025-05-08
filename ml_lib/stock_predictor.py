@@ -28,6 +28,7 @@ from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,stor
 
 def getStockData(company, starting_date=None, ending_date=None, size=None):
     response = yf.Ticker(company).history(period='max', interval='1d')
+    print(response.tail())
     last_close_price = response['Close'].iloc[-1] if not response.empty else None
     next_last_close_price = response['Close'].iloc[-2] if len(response) > 1 else None
     perce = ((last_close_price-next_last_close_price)/next_last_close_price)*100
@@ -144,8 +145,8 @@ def predict(company_name, date):
         if(model_detail.model_id!=None):
             print(model_detail.model_id)
             for i in range(len(prediction)):
-                output[last_date+timedelta(days=i)]=float(prediction[i])
-                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i),predicted_price=float(prediction[i]))
+                output[last_date+timedelta(days=i+1)]=float(prediction[i])
+                store_prediction(model_id=model_detail.model_id,last_actual_date=last_date,predicted_date=last_date+timedelta(days=i+1),predicted_price=float(prediction[i]))
         return output
 
 

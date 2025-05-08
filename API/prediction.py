@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException,APIRouter
 from pydantic import BaseModel
 from ml_lib.stock_predictor import predict
 from ml_lib.stock_predictorV2 import predictV2
-from ml_lib.controllers import get_stock_options,get_stock_history,get_predictions,getPredictedPricesFromDB
-from classes.prediction import InData,getstockhist,getpredictprice
+from ml_lib.controllers import get_stock_options, get_stock_history, get_predictions, getPredictedPricesFromDB, get_model_details
+from classes.prediction import InData,getstockhist,getpredictprice,ModelDetails
 app = FastAPI()
 router = APIRouter()
 
@@ -52,5 +52,12 @@ async def get_predicted_price(data:getpredictprice):
     result = get_predictions(data.ticker_symbol, data.starting_date, data.ending_date)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+@router.post("/get_model_details")
+async def get_model_detail(data: ModelDetails):
+    result = get_model_details(data.ticker)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Model details not found for the given ticker symbol.")
     return result
 
