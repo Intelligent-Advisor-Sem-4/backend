@@ -10,36 +10,36 @@ from db.dbConnect import get_db,engine
 # Load environment variables
 load_dotenv()
 
-def create_db_engine():
-    """Create and return a SQLAlchemy engine using explicit connection parameters"""
-    # Build connection URL from components
-    db_config = {
-        'username': os.getenv('DB_USER'),
-        'password': os.getenv('DB_PASSWORD'),
-        'host': os.getenv('DB_HOST'),
-        'port': os.getenv('DB_PORT'),
-        'database': os.getenv('DB_NAME')
-    }
+# def create_db_engine():
+#     """Create and return a SQLAlchemy engine using explicit connection parameters"""
+#     # Build connection URL from components
+#     db_config = {
+#         'username': os.getenv('DB_USER'),
+#         'password': os.getenv('DB_PASSWORD'),
+#         'host': os.getenv('DB_HOST'),
+#         'port': os.getenv('DB_PORT'),
+#         'database': os.getenv('DB_NAME')
+#     }
 
-    # Construct the connection URL
-    db_url = (
-        f"postgresql+psycopg2://{db_config['username']}:{db_config['password']}@"
-        f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
-    )
+#     # Construct the connection URL
+#     db_url = (
+#         f"postgresql+psycopg2://{db_config['username']}:{db_config['password']}@"
+#         f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
+#     )
 
-    # Connection pool settings
-    engine_params = {
-        'pool_size': 5,
-        'max_overflow': 10,
-        'pool_pre_ping': True,
-        'pool_recycle': 300,  # Recycle connections after 5 minutes
-        'connect_args': {
-            'connect_timeout': 5,  # 5 second connection timeout
-            'options': '-c statement_timeout=30000'  # 30 second statement timeout
-        }
-    }
+#     # Connection pool settings
+#     engine_params = {
+#         'pool_size': 5,
+#         'max_overflow': 10,
+#         'pool_pre_ping': True,
+#         'pool_recycle': 300,  # Recycle connections after 5 minutes
+#         'connect_args': {
+#             'connect_timeout': 5,  # 5 second connection timeout
+#             'options': '-c statement_timeout=30000'  # 30 second statement timeout
+#         }
+#     }
 
-    return create_engine(db_url, **engine_params)
+#     return create_engine(db_url, **engine_params)
 
 # # Create engine and session factory
 # engine = create_db_engine()
@@ -192,9 +192,15 @@ def get_financial_dataframes_for_manual_model(session, user_id=None):
     """
     expense_data = get_daily_expenses(session, user_id)
     income_data = get_daily_income(session, user_id)
-    
-    expense_df = pd.DataFrame(expense_data, columns=['date', 'total_spent'])
-    income_df = pd.DataFrame(income_data, columns=['date', 'total_spent'])
+
+    if len(expense_data)>0:
+        expense_df = pd.DataFrame(expense_data, columns=['date', 'total_spent'])
+    else:
+        expense_df = pd.DataFrame(columns=['date', 'total_spent'])
+    if len(income_data)>0:
+        income_df = pd.DataFrame(income_data, columns=['date', 'total_spent'])
+    else:
+        income_df = pd.DataFrame(columns=['date', 'total_spent'])
     
     for df in [expense_df, income_df]:
         df['date'] = pd.to_datetime(df['date'])
