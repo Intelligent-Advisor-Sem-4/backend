@@ -17,7 +17,7 @@ def prediction(user_id=None, period='day'):
 
     # Manual Model - Test1
     # print("Manual Model - Withput Categories")
-    expense_data, income_data = data_collector.get_financial_dataframes_for_manual_model(connection)
+    expense_data, income_data = data_collector.get_financial_dataframes_for_manual_model(connection,user_id)
     print(expense_data)
     print(income_data)
 
@@ -61,17 +61,22 @@ def prediction(user_id=None, period='day'):
         data['day_of_week'] = data['date'].dt.dayofweek + 1
 
         # Predictions
-        next_day = manual_model.predict_next_day(data)
-        next_week = manual_model.predict_next_week(data)
-        next_month = manual_model.predict_next_month(data)
+        if(len(data)>0):
+            next_day = manual_model.predict_next_day(data)
+            next_week = manual_model.predict_next_week(data)
+            next_month = manual_model.predict_next_month(data)
 
-        # print(f"Prediction for {title_name}:")
-        # print(f"Next day prediction: ${next_day.values[0]}")
-        # print(f"Next week prediction: ${next_week}")
-        # print(f"Next month prediction: ${next_month}")
-        output.append((f"{title[i]}_next_day",next_day.values[0]))
-        output.append((f"{title[i]}_next_week",next_week))
-        output.append((f"{title[i]}_next_month",next_month))
+            # print(f"Prediction for {title_name}:")
+            # print(f"Next day prediction: ${next_day.values[0]}")
+            # print(f"Next week prediction: ${next_week}")
+            # print(f"Next month prediction: ${next_month}")
+            output.append((f"{title[i]}_next_day",next_day.values[0]))
+            output.append((f"{title[i]}_next_week",next_week))
+            output.append((f"{title[i]}_next_month",next_month))
+        else:
+            output.append((f"{title[i]}_next_day",0))
+            output.append((f"{title[i]}_next_week",0))
+            output.append((f"{title[i]}_next_month",0))
 
     #Categories
     budget_categories = [
@@ -114,8 +119,14 @@ def prediction(user_id=None, period='day'):
     income_dfs = data_collector.get_daily_income_by_category(connection, user_id)
     expense_dfs = data_collector.get_daily_expenses_by_category(connection, user_id)
     
-    income_preds = manual_model.predict_category_spending(income_dfs, period)
-    expense_preds = manual_model.predict_category_spending(expense_dfs, period)
+    if(len(income_dfs)>0):
+        income_preds = manual_model.predict_category_spending(income_dfs, period)
+    else:
+        income_preds = {}
+    if(len(expense_dfs)>0):
+        expense_preds = manual_model.predict_category_spending(expense_dfs, period)
+    else:
+        expense_preds = {}
     
     # print("Category based predictions")
     # print(income_preds)
