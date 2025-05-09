@@ -15,9 +15,9 @@ jobs:
 
     - name: Deploy to Server
       env:
-        HOST: ${{ secrets.SERVER_HOST }}
-        USER: ${{ secrets.SERVER_USER }}
-        SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        HOST: ${{ secrets.HOST }}
+        USER: ${{ secrets.USER }}
+        SSH_KEY: ${{ secrets.SSH_KEY }}
       run: |
         # Write SSH private key to file
         echo "${SSH_KEY}" > ssh_key
