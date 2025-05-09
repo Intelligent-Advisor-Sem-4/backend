@@ -1,11 +1,21 @@
 from fastapi import FastAPI
 
-from API import user, prediction, profile, config, assets, risk_analyser, budget, explain_portfolio
+from API import (
+    user,
+    prediction,
+    profile,
+    config,
+    assets,
+    risk_analyser,
+    budget,
+    explain_portfolio,
+)
 
 from fastapi.middleware.cors import CORSMiddleware
 from core.middleware import token_verification_middleware, admin_access_middleware
 import os
 import re
+
 
 app = FastAPI()
 
@@ -57,7 +67,6 @@ app.include_router(assets.router)
 app.include_router(budget.router)
 app.include_router(risk_analyser.router)
 app.include_router(explain_portfolio.router)
-
 
 
 @app.get("/")
