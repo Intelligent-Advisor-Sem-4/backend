@@ -452,7 +452,6 @@ class QuantitativeRiskService:
         print("No recent analysis found, calculating new metrics")
         return self.calculate_quantitative_metrics(lookback_days, use_llm)
 
-
 # if __name__ == "__main__":
 #     # Example usage
 #     db_gen = get_db()

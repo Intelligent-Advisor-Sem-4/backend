@@ -105,10 +105,10 @@ class TestAnomalyDetectionService(unittest.TestCase):
     # Tests detection of bearish patterns
     def test_detect_bearish_pattern(self):
         mock_ticker_data = MagicMock()
-        dates = pd.date_range(datetime.now() - timedelta(days=4), periods=5, freq="D")
+        dates = pd.date_range(datetime.now() - timedelta(days=6), periods=7, freq="D")
         data = {
-            "Close": [100, 99, 97, 94, 90],  # 5 consecutive down days
-            "Volume": [1000, 1000, 1000, 1000, 1000]
+            "Close": [100, 99, 97, 94, 90, 85, 80],
+            "Volume": [1000, 1000, 1000, 1000, 1000, 1000, 1000]
         }
         mock_df = pd.DataFrame(data, index=dates)
         mock_ticker_data.history.return_value = mock_df
