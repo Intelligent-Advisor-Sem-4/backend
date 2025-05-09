@@ -55,7 +55,7 @@ jobs:
           # Show the FastAPI service status
           sudo systemctl status fastapi.service
 
-          exit
+          reboot
         EOF
 
         # Clean up SSH key
