@@ -15,9 +15,12 @@ router = APIRouter(
 )
 
 
-@router.get("/ping")
+@router.get("/ping",status_code=status.HTTP_200_OK)
 def ping():
-    return {"msg": "working!"}
+    try:
+        return {"msg": "working!"}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED, detail=f"Unexpected Error: {str(e)}")
 
 @router.post("/optimize_portfolio", status_code=status.HTTP_200_OK)
 async def optimize_portfolio(request: Input):
