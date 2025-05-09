@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from services.portfolio import (
     run_markowitz_optimization,
+    run_custom_risk_optimization,
     simulate_monte_carlo_for_weights,
     build_portfolio_response
 )
@@ -40,6 +41,33 @@ class TestPortfolioFunctions(unittest.TestCase):
             target_amount=150000,
             years=5
         )
+
+        # Mock expected returns and covariance matrix
+        self.mock_mu = pd.Series({'AAPL': 0.1, 'GOOG': 0.12})
+
+        # Create covariance matrix
+        self.mock_cov = pd.DataFrame(
+            [[0.0025, 0.0011],
+             [0.0011, 0.0036]],
+            index=['AAPL', 'GOOG'],
+            columns=['AAPL', 'GOOG']
+        )
+
+        # Mock EfficientFrontier class and its methods
+        self.mock_ef = MagicMock()
+        self.mock_ef.min_volatility.return_value = None
+        self.mock_ef.max_sharpe.return_value = None
+        self.mock_ef.efficient_risk.return_value = None
+        self.mock_ef.clean_weights.return_value = {
+            'AAPL': 0.35,
+            'GOOG': 0.40,
+            'MSFT': 0.25
+        }
+        self.mock_ef.portfolio_performance.side_effect = [
+            (0.08, 0.15, 0.4),  # min vol case
+            (0.14, 0.28, 0.5),  # max sharpe case
+            (0.11, 0.20, 0.45)  # efficient risk case
+        ]
 
     # ----- TESTS FOR run_markowitz_optimization -----
     @patch("services.portfolio.capm_return")
@@ -147,6 +175,102 @@ class TestPortfolioFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):  # Or any specific exception you handle
             build_portfolio_response(invalid_request)
 
+    # ----- TESTS FOR run_custom_risk_optimization -----
+    @patch("services.portfolio.get_mu")
+    @patch("services.portfolio.sample_cov")
+    @patch("services.portfolio.EfficientFrontier")
+    @patch("services.portfolio.copy.deepcopy")
+    def test_run_custom_risk_optimization_medium_risk(self, mock_deepcopy, mock_ef_class, mock_sample_cov, mock_get_mu):
+        """Test the custom risk optimization with a medium risk score of 50%"""
+        # Set up mocks
+        mock_get_mu.return_value = self.mock_mu
+        mock_sample_cov.return_value = self.mock_cov
+
+        # Mock EfficientFrontier instances
+        mock_ef_class.return_value = self.mock_ef
+        mock_deepcopy.return_value = self.mock_ef
+
+        # Run function with 50% risk score
+        weights, perf, mu, cov = run_custom_risk_optimization(
+            self.mock_prices,
+            self.tickers,
+            risk_score_percent=50
+        )
+
+        # Verify appropriate methods were called
+        mock_ef_class.assert_called()
+        self.mock_ef.min_volatility.assert_called_once()
+        self.mock_ef.max_sharpe.assert_called_once()
+        self.mock_ef.efficient_risk.assert_called_once()
+        self.assertEqual(self.mock_ef.portfolio_performance.call_count, 3)
+
+        # Verify output
+        self.assertEqual(weights, {'AAPL': 0.35, 'GOOG': 0.40, 'MSFT': 0.25})
+        self.assertEqual(perf, (0.11, 0.20, 0.45))
+        self.assertTrue(mu.equals(self.mock_mu))
+        self.assertTrue(cov.equals(self.mock_cov))
+
+        # Verify efficient_risk was called with the correct target volatility
+        # For 50% risk, target_vol should be: min_vol + 0.5 * (max_vol - min_vol)
+        expected_target_vol = 0.15 + 0.5 * (0.28 - 0.15)  # = 0.215
+        self.mock_ef.efficient_risk.assert_called_with(expected_target_vol)
+
+    @patch("services.portfolio.get_mu")
+    @patch("services.portfolio.sample_cov")
+    @patch("services.portfolio.EfficientFrontier")
+    @patch("services.portfolio.copy.deepcopy")
+    def test_run_custom_risk_optimization_min_risk(self, mock_deepcopy, mock_ef_class, mock_sample_cov, mock_get_mu):
+        """Test the custom risk optimization with minimum risk score of 0%"""
+        # Set up mocks
+        mock_get_mu.return_value = self.mock_mu
+        mock_sample_cov.return_value = self.mock_cov
+
+        # Mock EfficientFrontier instances
+        mock_ef_class.return_value = self.mock_ef
+        mock_deepcopy.return_value = self.mock_ef
+
+
+        # Run function with 0% risk score
+        weights, perf, mu, cov = run_custom_risk_optimization(
+            self.mock_prices,
+            self.tickers,
+            risk_score_percent=0
+        )
+
+        # Verify efficient_risk was called with min_vol
+        self.mock_ef.efficient_risk.assert_called_with(0.15)  # min_vol value
+
+        # Verify output
+        self.assertEqual(weights, {'AAPL': 0.35, 'GOOG': 0.40, 'MSFT': 0.25})
+
+    @patch("services.portfolio.get_mu")
+    @patch("services.portfolio.sample_cov")
+    @patch("services.portfolio.EfficientFrontier")
+    @patch("services.portfolio.copy.deepcopy")
+    def test_run_custom_risk_optimization_max_risk(self, mock_deepcopy, mock_ef_class, mock_sample_cov,
+                                                   mock_get_mu):
+        """Test the custom risk optimization with maximum risk score of 100%"""
+        # Set up mocks
+        mock_get_mu.return_value = self.mock_mu
+        mock_sample_cov.return_value = self.mock_cov
+
+        # Mock EfficientFrontier instances
+        mock_ef_class.return_value = self.mock_ef
+        mock_deepcopy.return_value = self.mock_ef
+
+
+        # Run function with 100% risk score
+        weights, perf, mu, cov = run_custom_risk_optimization(
+            self.mock_prices,
+            self.tickers,
+            risk_score_percent=100
+        )
+
+        # Verify efficient_risk was called with max_vol
+        self.mock_ef.efficient_risk.assert_called_with(0.28)  # max_vol value
+
+        # Verify output
+        self.assertEqual(weights, {'AAPL': 0.35, 'GOOG': 0.40, 'MSFT': 0.25})
 
 if __name__ == "__main__":
     unittest.main()
