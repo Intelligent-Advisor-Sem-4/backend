@@ -98,7 +98,10 @@ def budget_analyst_agent(transaction_history,clients):
     for txn in transaction_history:
         data.append((txn['date'],txn['type'],txn['reason'],txn['category'],txn['amount']))
 
-    r,a = recommendations_agent(data,clients[1])
+    if len(data)==0:
+        r,a = [],['None']
+    else:
+        r,a = recommendations_agent(data,clients[1])
     return {
         "summary": calculate_financial_summary(transaction_history),
         "assessment": "",

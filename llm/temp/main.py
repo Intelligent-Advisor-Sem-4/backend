@@ -70,7 +70,7 @@ def prediction(user_id=None, period='day'):
             # print(f"Next day prediction: ${next_day.values[0]}")
             # print(f"Next week prediction: ${next_week}")
             # print(f"Next month prediction: ${next_month}")
-            output.append((f"{title[i]}_next_day",next_day.values[0]))
+            output.append((f"{title[i]}_next_day",next_day))
             output.append((f"{title[i]}_next_week",next_week))
             output.append((f"{title[i]}_next_month",next_month))
         else:
