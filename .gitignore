@@ -11,3 +11,5 @@ my_venv/
 /_pycache__
 tf_env/
 __pycache__
+
+requirements.txt
