@@ -5,17 +5,32 @@ from pypfopt.expected_returns import mean_historical_return,capm_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
 from utils.finance import fetch_price_data
+from utils.portfolioconfig import MU_METHOD, BENCHMARK_TICKER
 from classes.profile import Input
 
 
-def run_markowitz_optimization(price_data, tickers):
+# Get the mu value using the MU_METHOD specified in the config
+def get_mu(price_data,tickers, method=MU_METHOD):
+
+    #Get the prices for the tickers given as input and not as a benchmark
+    ticker_prices = price_data[tickers]
+    if method == 'historical_yearly_return':
+        return mean_historical_return(ticker_prices)
+    elif method == 'capm':
+        return capm_return(price_data, price_data[BENCHMARK_TICKER], risk_free_rate=0.02)
+    else:
+        raise ValueError(f"Unknown MU_METHOD: {method}")
+
+#Calculate the risk-free rate using the 10-year treasury yield
+
+
+def run_markowitz_optimization(price_data, tickers, risk_free_rate=0.02):
     # Changed to use CAPM instead of mean historical return
     # with "SPY" as the benchmark ticker
-    benchmark_ticker = 'SPY'
     prices = price_data[tickers]
-    market_prices = price_data['SPY']
-    # mu = mean_historical_return(price_data)
-    mu = capm_return(prices, market_prices, risk_free_rate=0.02)
+    market_prices = price_data[BENCHMARK_TICKER]
+
+    mu = get_mu(prices, tickers, MU_METHOD)
     cov = sample_cov(prices)
     ef = EfficientFrontier(mu, cov)
     weights = ef.max_sharpe()
