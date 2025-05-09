@@ -2,7 +2,7 @@ import numpy as np
 import copy
 import pandas as pd
 from fastapi import HTTPException
-from pypfopt.expected_returns import mean_historical_return,capm_return
+from pypfopt.expected_returns import mean_historical_return,capm_return,ema_historical_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
 from utils.finance import fetch_price_data, fetch_tbill_data
@@ -35,6 +35,7 @@ def get_mu(price_data, tickers, method=MU_METHOD):
 
     if method == 'historical_yearly_return':
         return mean_historical_return(ticker_prices)
+
     elif method == 'capm':
         return capm_return(ticker_prices,market_prices,risk_free_rate=RISK_FREE_RATE)
     else:
