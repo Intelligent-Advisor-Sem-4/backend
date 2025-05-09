@@ -36,8 +36,7 @@ def get_mu(price_data, tickers, method=MU_METHOD):
     if method == 'historical_yearly_return':
         return mean_historical_return(ticker_prices)
     elif method == 'capm':
-        print("capm")
-        return capm_return(ticker_prices,market_prices,risk_free_rate)
+        return capm_return(ticker_prices,market_prices,risk_free_rate=RISK_FREE_RATE)
     else:
         raise ValueError(f"Unknown MU_METHOD: {method}")
 
@@ -46,7 +45,7 @@ def run_markowitz_optimization(price_data, tickers):
     
     # Fetch the price data for the tickers given as input and exclude the benchmark ticker
     prices = price_data[tickers]
-    mu = capm_return(prices, price_data[BENCHMARK_TICKER].to_frame(name="mkt"), risk_free_rate=get_risk_free_rate())
+    mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
     ef = EfficientFrontier(mu, cov)
     weights = ef.max_sharpe()
@@ -58,7 +57,7 @@ def run_markowitz_optimization(price_data, tickers):
 def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
 
     prices = price_data[tickers]
-    mu = capm_return(prices, price_data[BENCHMARK_TICKER].to_frame(name="mkt"), risk_free_rate=get_risk_free_rate())
+    mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
     
     ef = EfficientFrontier(mu, cov)
