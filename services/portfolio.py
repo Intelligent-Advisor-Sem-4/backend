@@ -12,12 +12,15 @@ from classes.profile import Input
 # Get the mu value using the MU_METHOD specified in the config
 def get_mu(price_data,tickers, method=MU_METHOD):
 
-    #Get the prices for the tickers given as input and not as a benchmark
+    # Get the prices for the tickers given as input and exclude the benchmark ticker
+    # This is to ensure that the benchmark ticker is not included in the mu calculation
     ticker_prices = price_data[tickers]
+    market_prices = price_data[BENCHMARK_TICKER]
+
     if method == 'historical_yearly_return':
         return mean_historical_return(ticker_prices)
     elif method == 'capm':
-        return capm_return(price_data, price_data[BENCHMARK_TICKER], risk_free_rate=0.02)
+        return capm_return(ticker_prices,market_prices,risk_free_rate=0.02)
     else:
         raise ValueError(f"Unknown MU_METHOD: {method}")
 
@@ -25,12 +28,11 @@ def get_mu(price_data,tickers, method=MU_METHOD):
 
 
 def run_markowitz_optimization(price_data, tickers, risk_free_rate=0.02):
-    # Changed to use CAPM instead of mean historical return
-    # with "SPY" as the benchmark ticker
+    
+    # Fetch the price data for the tickers given as input and exclude the benchmark ticker
     prices = price_data[tickers]
-    market_prices = price_data[BENCHMARK_TICKER]
-
-    mu = get_mu(prices, tickers, MU_METHOD)
+    
+    mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
     ef = EfficientFrontier(mu, cov)
     weights = ef.max_sharpe()
@@ -40,10 +42,9 @@ def run_markowitz_optimization(price_data, tickers, risk_free_rate=0.02):
 
 
 def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
-    benchmark_ticker = 'SPY'
+
     prices = price_data[tickers]
-    market_prices = price_data['SPY']
-    mu = capm_return(prices, market_prices, risk_free_rate=0.02)
+    mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
     
     ef = EfficientFrontier(mu, cov)
