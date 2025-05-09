@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - Production_Backend
-    
 
 jobs:
   deploy:
@@ -13,11 +12,6 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
 
     - name: Install Dependencies
       run: |
@@ -33,29 +27,32 @@ jobs:
         USER: ${{ secrets.SERVER_USER }}
         SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
       run: |
-        # Write the SSH private key to a file
+        # Write SSH private key to file
         echo "${SSH_KEY}" > ssh_key
         chmod 600 ssh_key
 
         # Define deployment path
         DEPLOY_PATH="/SEM4/Financial Adivisor/Backend"
 
-        # Copy code to server
-        scp -i ssh_key -o StrictHostKeyChecking=no -r . ${USER}@${HOST}:${DEPLOY_PATH}
+        # Sync only the code (skip virtual env, .git, __pycache__, etc.)
+        rsync -avz -e "ssh -i ssh_key -o StrictHostKeyChecking=no" \
+          --exclude '.venv' --exclude 'venv' --exclude '.git' --exclude '__pycache__' \
+          ./ ${USER}@${HOST}:${DEPLOY_PATH}
 
-        # SSH into server and deploy
-        ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << EOF
-          cd ${DEPLOY_PATH}
+        # SSH and deploy
+        ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << 'EOF'
+          set -e
+          cd /SEM4/Financial\ Adivisor/Backend
           python3 -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Kill any running uvicorn process on port 8000
+          # Kill any process using port 8000
           fuser -k 8000/tcp || true
 
-          # Run FastAPI (you may want to set up systemd or supervisor instead of nohup)
-          nohup venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          # Run app with nohup (fix path)
+          nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
         EOF
 
         # Clean up SSH key
