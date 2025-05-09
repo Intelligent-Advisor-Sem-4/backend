@@ -45,6 +45,7 @@ app.add_middleware(
     max_age=600,
 )
 
+
 # # Uncomment when ready to enforce token verification
 app.middleware("http")(admin_access_middleware)
 app.middleware("http")(token_verification_middleware)
