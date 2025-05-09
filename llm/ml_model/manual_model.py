@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 def predict_next_day(spending_data):
     # Simple exponential smoothing
-    model = SimpleExpSmoothing(spending_data['total_spent']).fit()
+    bl = spending_data['total_spent']
+    model = SimpleExpSmoothing(bl).fit()
     next_day_pred = model.forecast(1)
     
     # Adjust for day of week pattern (even with few data points)
