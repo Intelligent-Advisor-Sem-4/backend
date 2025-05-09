@@ -19,8 +19,8 @@ jobs:
         USER: ${{ secrets.USER }}
         SSH_KEY: ${{ secrets.SSH_KEY }}
       run: |
-        # Write SSH private key to file
-        echo "${SSH_KEY}" > ssh_key
+        # Safely write SSH private key to file
+        printf "%s" "${SSH_KEY}" > ssh_key
         chmod 600 ssh_key
 
         # Define deployment path
@@ -35,26 +35,13 @@ jobs:
         ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << EOF
           set -e
           cd intellifinance/backend/
-          
-          # Stop the service (alias fas-stop)
           fas-stop
-          
-          # Stash local changes just in case
           git stash || true
-          
-          # Pull the latest code
           git pull
-          
-          # Activate virtual environment and install requirements
           source ../.server_env/bin/activate
           pip install -r requirements.txt
-          
-          # Start the service (alias fas-start)
           fas-start
-          
-          # Check the service status (alias fas-status)
           fas-status
-          
           exit
         EOF
 
