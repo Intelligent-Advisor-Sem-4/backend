@@ -256,11 +256,9 @@ class Transaction(Base):
 
 class RiskAnalysis(Base):
     __tablename__ = "risk_level"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     risk_score = Column(Numeric(10, 2), nullable=False)
-    
-    user = relationship("UserModel", backref=backref("risk_analysis", lazy="dynamic"))
 
+    user = relationship("UserModel", backref=backref("risk_analysis", lazy="dynamic"))
