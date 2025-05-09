@@ -11,6 +11,8 @@ class Input(BaseModel):
     investment_amount: float
     target_amount: float
     years: float
+    risk_score_percent: Optional[float] = None  # NEW: user's quiz risk percent (0-100)
+    use_risk_score: bool = False                # NEW: whether user selects custom risk
 
 class Ticker(BaseModel):
     ticker_symbol: str
@@ -21,3 +23,10 @@ class Ticker(BaseModel):
 
 class Tickers(BaseModel):
     tickers: List[Ticker]
+
+class RiskScoreIn(BaseModel):
+    user_id: str
+    score:   float
+
+class RiskScoreOut(BaseModel):
+    score: float
