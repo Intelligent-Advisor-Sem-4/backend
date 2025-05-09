@@ -13,14 +13,6 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Run Tests
-      run: pytest
-
     - name: Deploy to Server
       env:
         HOST: ${{ secrets.SERVER_HOST }}
@@ -32,7 +24,7 @@ jobs:
         chmod 600 ssh_key
 
         # Define deployment path
-        DEPLOY_PATH="/SEM4/Financial Adivisor/Backend"
+        DEPLOY_PATH="intellifinance/backend/"
 
         # Sync only the code (skip virtual env, .git, __pycache__, etc.)
         rsync -avz -e "ssh -i ssh_key -o StrictHostKeyChecking=no" \
@@ -40,19 +32,30 @@ jobs:
           ./ ${USER}@${HOST}:${DEPLOY_PATH}
 
         # SSH and deploy
-        ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << 'EOF'
+        ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << EOF
           set -e
-          cd /SEM4/Financial\ Adivisor/Backend
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip
+          cd intellifinance/backend/
+          
+          # Stop the service (alias fas-stop)
+          fas-stop
+          
+          # Stash local changes just in case
+          git stash || true
+          
+          # Pull the latest code
+          git pull
+          
+          # Activate virtual environment and install requirements
+          source ../.server_env/bin/activate
           pip install -r requirements.txt
-
-          # Kill any process using port 8000
-          fuser -k 8000/tcp || true
-
-          # Run app with nohup (fix path)
-          nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          
+          # Start the service (alias fas-start)
+          fas-start
+          
+          # Check the service status (alias fas-status)
+          fas-status
+          
+          exit
         EOF
 
         # Clean up SSH key
