@@ -1,6 +1,5 @@
 from decimal import Decimal
 import logging
-from typing import Optional
 from fastapi import APIRouter, Form, HTTPException, status,Depends, Query, Response
 from classes.profile import Input,Tickers,RiskScoreIn, RiskScoreOut
 from services.portfolio import build_portfolio_response
