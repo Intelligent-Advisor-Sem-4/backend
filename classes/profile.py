@@ -23,3 +23,10 @@ class Ticker(BaseModel):
 
 class Tickers(BaseModel):
     tickers: List[Ticker]
+
+class RiskScoreIn(BaseModel):
+    user_id: str
+    score:   float
+
+class RiskScoreOut(BaseModel):
+    score: float

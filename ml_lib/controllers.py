@@ -119,6 +119,7 @@ def get_stock_history(s_date, e_date, st_id=None, st_sym=None):
 
     data_res = getStockData(company=ticker_symbol, starting_date=s_date, ending_date=e_date)
     data = data_res[0]
+    print("point 4 pass")
 
     # Check if the index is already timezone-aware
     if data.index.tz is None:
@@ -134,6 +135,7 @@ def get_stock_history(s_date, e_date, st_id=None, st_sym=None):
             "volume": float(row['Volume'])
         })
     output = {"ticker": ticker_symbol, "currentPrice": data_res[1], "priceChange": data_res[2], "history": history_list}
+    print("point 5 pass")
     return output
 
 @contextmanager
@@ -190,20 +192,24 @@ def get_model_details(ticker_symbol: str):
 
 def get_predictions(ticker_symbol,starting_date, ending_date):
     data = get_stock_history(starting_date,ending_date,st_sym=ticker_symbol)
+
     history_data = data["history"]
     last_date = history_data[-1]["date"]
     available_date = getlast_date(ticker_symbol)
+    print("point 6 pass")
     
     #if (available_date<ending_date)
     with get_db_local() as db:
         # Query the stock by ticker symbol
         stock = db.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
         if not stock:
+            print(f"Stock with ticker symbol '{ticker_symbol}' not found.")
             return {"error": f"Stock with ticker symbol '{ticker_symbol}' not found."}
 
         # Query the prediction model for the stock
         model = db.query(PredictionModel).filter(PredictionModel.target_stock_id == stock.stock_id).first()
         if not model:
+            print(f"No prediction model found for stock '{ticker_symbol}'.")
             return {"error": f"No prediction model found for stock '{ticker_symbol}'."}
 
         # Query predictions from the StockPrediction table
@@ -217,12 +223,14 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
             )
             .order_by(StockPrediction.predicted_date.asc())
             .limit(7)  # Fetch a maximum of 7 predictions
-            .all()
-        )
-        if(len(predictions)<7):
-
-            if(available_date>=ending_date):
-                predict(ticker_symbol,ending_date)
+            .all())
+        print("point 7 pass")
+        if len(predictions) < 7:
+            if available_date >= ending_date:
+                try:
+                    predict(ticker_symbol, ending_date)
+                except Exception as e:
+                    return {"error": f"An error occurred while predicting: {str(e)}"}
                 predictions = (
                     db.query(StockPrediction)
                     .filter(
@@ -234,8 +242,10 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
                     .limit(7)  # Fetch a maximum of 7 predictions
                     .all()
                 )
+                print("point 8 pass")
             elif(len(predictions)==0):
-                return {"error":f"give the date before to {available_date}"}
+                print(f"Please provide a date by or earlier than {available_date}.")
+                return {"error": f"Please provide a date by or earlier than {available_date}."}
                 
 
         # Format the predictions into a list of dictionaries
@@ -253,7 +263,12 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
 
 
     
-
+    modeldata = get_model_details(ticker_symbol=ticker_symbol)
+    print("point 9 pass")
+    if "error" in modeldata:
+        print("point 10 pass")
+        return modeldata
+    
 
     return {
         "stockData":{
@@ -267,7 +282,7 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
             "predictions": prediction_list,
             "nextWeek": prediction_list[-1]
         },
-        "modelMetadata":get_model_details(ticker_symbol=ticker_symbol)
+        "modelMetadata": modeldata
 
     }
 

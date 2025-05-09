@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 import yfinance as yf
 from yfinance import Ticker
 
-from db.dbConnect import get_db
 from models.models import QuantitativeRiskAnalysis
 from services.llm.llm import generate_content_with_llm, LLMProvider, WriterModel
 from services.utils import calculate_risk_scores, to_python_type, get_stock_by_ticker, parse_llm_json_response, \
@@ -453,16 +452,15 @@ class QuantitativeRiskService:
         print("No recent analysis found, calculating new metrics")
         return self.calculate_quantitative_metrics(lookback_days, use_llm)
 
-
-if __name__ == "__main__":
-    # Example usage
-    db_gen = get_db()
-    session = next(db_gen)
-
-    t = "TSLA"
-    t_d = Ticker(t)  # Replace with actual Ticker object
-    gemini_client = None  # Replace with actual Gemini client
-
-    quantitative_risk_service = QuantitativeRiskService(session, t, ticker_data=t_d)
-    risk_response = quantitative_risk_service.get_quantitative_metrics()
-    print(risk_response.model_dump())
+# if __name__ == "__main__":
+#     # Example usage
+#     db_gen = get_db()
+#     session = next(db_gen)
+#
+#     t = "TSLA"
+#     t_d = Ticker(t)  # Replace with actual Ticker object
+#     gemini_client = None  # Replace with actual Gemini client
+#
+#     quantitative_risk_service = QuantitativeRiskService(session, t, ticker_data=t_d)
+#     risk_response = quantitative_risk_service.get_quantitative_metrics()
+#     print(risk_response.model_dump())

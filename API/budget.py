@@ -1,6 +1,6 @@
 from enum import Enum
 import json
-from fastapi import Depends,APIRouter
+from fastapi import Depends, APIRouter
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -11,11 +11,13 @@ import smtplib
 import json
 import traceback
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from db.dbConnect import get_db
+
 sys.path.append(str(Path(__file__).parent.parent))
-from llm.temp.main import prediction,getTrascationOfMonth
+from llm.temp.main import prediction, getTrascationOfMonth
 import llm.sub_llm as sub_llm
 from typing import List
 from sqlalchemy.orm import Session
@@ -42,7 +44,9 @@ from services.budget_service.budget_services import (
     update_budget_goal,
     delete_budget_goal
 )
+
 router = APIRouter(prefix='/budget')
+
 
 @router.get("/predictions")
 async def get_predictions(user_id: str):
@@ -50,8 +54,8 @@ async def get_predictions(user_id: str):
     predictions = prediction(user_id)
     transactions = getTrascationOfMonth(user_id)
     # print(predictions)
-    if len(transactions)==0:
-        predictions['uid']=user_id
+    if len(transactions) == 0:
+        predictions['uid'] = user_id
         return {
             "predictions": predictions,
             "financial_advice": {
@@ -64,8 +68,8 @@ async def get_predictions(user_id: str):
             },
             "budget_goals": []
         }
-    advice,goals = sub_llm.getFinancialAdvice(predictions,transactions)
-    predictions['uid']=user_id
+    advice, goals = sub_llm.getFinancialAdvice(predictions, transactions)
+    predictions['uid'] = user_id
     print(advice)
     print(goals)
     return {
@@ -73,6 +77,7 @@ async def get_predictions(user_id: str):
         "financial_advice": advice,
         "budget_goals": [goals]
     }
+
 
 @router.get("/budget-report")
 async def get_budget_report(user_id: str):
@@ -87,12 +92,14 @@ async def get_budget_report(user_id: str):
         "budget_report": budget
     }
 
+
 @router.get("/categorize-transaction")
 async def categorize_transaction(description: str, amount: float, type: str):
     """Endpoint 3: Categorize a new transaction"""
     res = sub_llm.getTransactionCategories(description, amount, type)
     print(res)
     return res
+
 
 @router.get("/chat")
 async def chat(prompt: str):
@@ -104,22 +111,23 @@ async def chat(prompt: str):
         "response": response
     }
 
+
 @router.get("/email")
 async def send_email(db: Session = Depends(get_db)):
     """Send budget report email with error handling"""
-    sender_email = os.environ.get('SENDER_EMAIL')
-    sender_password = os.environ.get('SENDER_PASSWORD')
-    
+    sender_email = os.environ.get('GMAIL_USER')
+    sender_password = os.environ.get('GMAIL_PASSWORD')
+
     if not sender_email or not sender_password:
         raise ValueError("Email credentials not configured in environment variables")
-    
+
     # receivers = [("19aaa01d-4413-467c-82ee-2f30defb2fee", 'smudunlahiru@gmail.com', "John Doe")]
     receivers = []
     for row in getAllUsers(db):
         receivers.append((row.id, (row.email if "gmail" in row.email else "smudunlahiru@gmail.com"), row.name))
 
     print(receivers)
-    
+
     subject = f"Your Budget Report - {datetime.now().strftime('%Y-%m-%d')}"
     smtp_config = {
         'gmail.com': ('smtp.gmail.com', 587),
@@ -127,13 +135,13 @@ async def send_email(db: Session = Depends(get_db)):
         'hotmail.com': ('smtp.office365.com', 587),
         'yahoo.com': ('smtp.mail.yahoo.com', 587)
     }
-    
+
     domain = sender_email.split('@')[-1]
     smtp_server, smtp_port = smtp_config.get(domain, (None, None))
-    
+
     if not smtp_server:
         raise ValueError(f"Unsupported email provider: {domain}")
-    
+
     for receiver_id, receiver_email, receiver_name in receivers:
         try:
             transactions = getTrascationOfMonth(receiver_id)
@@ -284,12 +292,12 @@ async def send_email(db: Session = Depends(get_db)):
                         
                         <h4>Top Spending Categories</h4>
                         <div class="category-list">
-                            {''.join(f'<div class="category-item"><span class="category-name">{category[0]}</span><span class="category-value">{category[1]:.1f}%</span></div>' 
-                            for category in budget['summary']['top_spending_categories'])}
+                            {''.join(f'<div class="category-item"><span class="category-name">{category[0]}</span><span class="category-value">{category[1]:.1f}%</span></div>'
+                                     for category in budget['summary']['top_spending_categories'])}
                         </div>
                         
-                        {f'<div class="alert-badge">⚠️ {budget["alerts"][0].strip()}</div>' 
-                        if budget['alerts'][0].strip() != "None" else ''}
+                        {f'<div class="alert-badge">⚠️ {budget["alerts"][0].strip()}</div>'
+            if budget['alerts'][0].strip() != "None" else ''}
                     </div>
 
                     <!-- Financial Predictions Card -->
@@ -314,8 +322,8 @@ async def send_email(db: Session = Depends(get_db)):
                         
                         <h4>Expense Breakdown</h4>
                         <div class="category-list">
-                            {''.join(f'<div class="category-item"><span class="category-name">{category}</span><span class="category-value">${amount:.2f}</span></div>' 
-                            for category, amount in predictions['expense'].items())}
+                            {''.join(f'<div class="category-item"><span class="category-name">{category}</span><span class="category-value">${amount:.2f}</span></div>'
+                                     for category, amount in predictions['expense'].items())}
                         </div>
                     </div>
 
@@ -324,8 +332,8 @@ async def send_email(db: Session = Depends(get_db)):
                         <h3 class="card-title">Recommendations</h3>
                         
                         <div class="category-list">
-                            {''.join(f'<div class="recommendation-item">{recommendation}</div>' 
-                            for recommendation in budget['recommendations'])}
+                            {''.join(f'<div class="recommendation-item">{recommendation}</div>'
+                                     for recommendation in budget['recommendations'])}
                         </div>
                         
                         <h4>Action Plan</h4>
@@ -393,46 +401,55 @@ async def send_email(db: Session = Depends(get_db)):
 async def get_expenses_by_user_id(user_id: str, db: Session = Depends(get_db)):
     return get_transactions_by_user(db, user_id)
 
+
 @router.post("/transactions", response_model=Transaction)
 async def create_expense(expense: TransactionCreate, db: Session = Depends(get_db)):
     print(expense)
     return create_transaction(db, expense)
 
+
 @router.put("/transactions/{transaction_id}", response_model=Transaction)
 async def update_expense(
-    transaction_id: int, 
-    updates: TransactionUpdate, 
-    db: Session = Depends(get_db)
+        transaction_id: int,
+        updates: TransactionUpdate,
+        db: Session = Depends(get_db)
 ):
     return update_transaction(db, transaction_id, updates)
+
 
 @router.delete("/transactions/{transaction_id}")
 async def delete_expense(transaction_id: int, db: Session = Depends(get_db)):
     return delete_transaction(db, transaction_id)
 
+
 @router.get("/transactions/categories/{user_id}")
 async def get_expenses_by_category(user_id: str, db: Session = Depends(get_db)):
     return get_transactions_by_category(db, user_id)
+
 
 @router.get("/transactions/summary/{user_id}", response_model=TransactionSummary)
 async def get_summary_by_user_id(user_id: str, db: Session = Depends(get_db)):
     return get_transaction_summary(db, user_id)
 
+
 @router.get("/budget-goals/{user_id}", response_model=List[BudgetGoal])
 async def get_budget_goals_endpoint(user_id: str, db: Session = Depends(get_db)):
     return get_budget_goals(db, user_id)
+
 
 @router.post("/budget-goals", response_model=BudgetGoal)
 async def create_budget_goal_endpoint(goal: BudgetGoalCreate, db: Session = Depends(get_db)):
     return create_budget_goal(db, goal)
 
+
 @router.put("/budget-goals/{goal_id}", response_model=BudgetGoal)
 async def update_budget_goal_endpoint(
-    goal_id: int, 
-    updates: BudgetGoalUpdate, 
-    db: Session = Depends(get_db)
+        goal_id: int,
+        updates: BudgetGoalUpdate,
+        db: Session = Depends(get_db)
 ):
     return update_budget_goal(db, goal_id, updates)
+
 
 @router.delete("/budget-goals/{goal_id}")
 async def delete_budget_goal_endpoint(goal_id: int, db: Session = Depends(get_db)):
