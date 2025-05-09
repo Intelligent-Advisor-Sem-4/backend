@@ -10,6 +10,7 @@ from core.password import get_password_hash
 from models import Base, UserModel
 from models.models import Gender, AccessLevel
 
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -50,7 +51,7 @@ def seed_user():
                 "password": get_password_hash("123"),
                 "email": "johndoe@example.com",
                 "access_level": AccessLevel.USER,
-                "created_at": datetime.now(timezone.utc)
+                "created_at": datetime.now(timezone.utc),
             },
             {
                 "id": uuid4(),
@@ -61,15 +62,19 @@ def seed_user():
                 "password": get_password_hash("admin123"),
                 "email": "admin@example.com",
                 "access_level": AccessLevel.ADMIN,
-                "created_at": datetime.now(timezone.utc)
-            }
+                "created_at": datetime.now(timezone.utc),
+            },
         ]
 
         for user_data in users_to_seed:
-            existing_user = db.query(UserModel).filter(
-                (UserModel.username == user_data["username"]) |
-                (UserModel.email == user_data["email"])
-            ).first()
+            existing_user = (
+                db.query(UserModel)
+                .filter(
+                    (UserModel.username == user_data["username"])
+                    | (UserModel.email == user_data["email"])
+                )
+                .first()
+            )
 
             if existing_user:
                 print(f"User '{user_data['username']}' already exists. Skipping.")
@@ -111,12 +116,13 @@ def reset_database():
     seed_database()
     print("Database reset successfully.")
 
+
 # reset_database()
 if __name__ == "__main__":
     # Uncomment the following line to reset the database
-    reset_database()
+    # reset_database()
     # Uncomment the following line to create tables
-    # create_tables()
+    create_tables()
     # Uncomment the following line to drop tables
     # drop_tables()
     pass

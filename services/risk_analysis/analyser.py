@@ -5,7 +5,6 @@ import yfinance as yf
 from sqlalchemy.orm import Session
 
 from classes.Asset import RiskScoreUpdate
-from db.dbConnect import get_db
 from services.risk_analysis.esg_risk import ESGDataService
 from services.risk_analysis.news_sentiment import NewsSentimentService
 from services.risk_analysis.quantitative_risk import QuantitativeRiskService
@@ -298,15 +297,15 @@ class RiskAnalysis:
         )
 
 
-if __name__ == "__main__":
-    # Example usage
-    db_gen = get_db()
-    session = next(db_gen)
-    try:
-        analyzer = RiskAnalysis("TSLA", session)
-        report = analyzer.generate_risk_report(lookback_days=30)
-        print(report)
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        session.close()
+# if __name__ == "__main__":
+#     # Example usage
+#     db_gen = get_db()
+#     session = next(db_gen)
+#     try:
+#         analyzer = RiskAnalysis("TSLA", session)
+#         report = analyzer.generate_risk_report(lookback_days=30)
+#         print(report)
+#     except Exception as e:
+#         print(f"Error: {e}")
+#     finally:
+#         session.close()
