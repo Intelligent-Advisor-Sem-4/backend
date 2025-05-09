@@ -31,17 +31,30 @@ jobs:
           --exclude '.venv' --exclude 'venv' --exclude '.git' --exclude '__pycache__' \
           ./ ${USER}@${HOST}:${DEPLOY_PATH}
 
-        # SSH and deploy
+        # SSH and deploy with manual commands (no aliases)
         ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << EOF
           set -e
           cd intellifinance/backend/
-          fas-stop
+
+          # Stop the FastAPI service
+          sudo systemctl stop fastapi.service
+
+          # Stash local changes just in case
           git stash || true
+
+          # Pull the latest code
           git pull
+
+          # Activate virtual environment and install requirements
           source ../.server_env/bin/activate
           pip install -r requirements.txt
-          fas-start
-          fas-status
+
+          # Start the FastAPI service
+          sudo systemctl start fastapi.service
+
+          # Show the FastAPI service status
+          sudo systemctl status fastapi.service
+
           exit
         EOF
 
