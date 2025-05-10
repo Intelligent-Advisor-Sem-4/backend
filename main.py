@@ -17,38 +17,38 @@ import os
 
 app = FastAPI()
 
-# # Define allowed origins with environment variable support
-# allowed_origins = [
-#     "https://intellifinance.shancloudservice.com",
-#     "https://intellifinance2.shancloudservice.com",
-#     "http://localhost:3000",
-# ]
+# Define allowed origins with environment variable support
+allowed_origins = [
+    "https://intellifinance.shancloudservice.com",
+    "https://intellifinance2.shancloudservice.com",
+    "http://localhost:3000",
+]
 
-# # # Add frontend URL from environment variable if exists
-# frontend_url = os.getenv("FRONTEND_URL")
-# if frontend_url:
-#     # Split by comma if multiple URLs are provided
-#     additional_origins = [url.strip() for url in frontend_url.split(",")]
-#     allowed_origins.extend(additional_origins)
+# # Add frontend URL from environment variable if exists
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    # Split by comma if multiple URLs are provided
+    additional_origins = [url.strip() for url in frontend_url.split(",")]
+    allowed_origins.extend(additional_origins)
 
-# # Regex pattern for all shancloudservice.com subdomains
-# allowed_origin_regex = r"https://.*\.shancloudservice\.com"
+# Regex pattern for all shancloudservice.com subdomains
+allowed_origin_regex = r"https://.*\.shancloudservice\.com"
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=allowed_origins,
-#     allow_origin_regex=allowed_origin_regex,
-#     allow_credentials=True,
-#     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-#     allow_headers=["*"],
-#     expose_headers=["Content-Length"],
-#     max_age=600,
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["Content-Length"],
+    max_age=600,
+)
 
 
-# # # Uncomment when ready to enforce token verification
-# app.middleware("http")(admin_access_middleware)
-# app.middleware("http")(token_verification_middleware)
+# # Uncomment when ready to enforce token verification
+app.middleware("http")(admin_access_middleware)
+app.middleware("http")(token_verification_middleware)
 
 app.add_middleware(
     CORSMiddleware,
