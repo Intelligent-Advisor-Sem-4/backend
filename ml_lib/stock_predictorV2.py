@@ -59,12 +59,12 @@ def trainerV2(company_name,batch=32,input_dim=90,lc=128):
         if not os.path.exists(os.path.join("ml_lib",models_folder)):
             os.makedirs(os.path.join("ml_lib",models_folder))
 
-        scaler_file = os.path.join("ml_lib",models_folder, f"{company_name}_scaler.pkl")
+        scaler_file = os.path.join("ml_lib","trainedModels", f"{company_name}_scaler.pkl")
         with open(scaler_file, "wb") as f:
             pickle.dump(scaler, f)
         print(f"Scaler saved as '{scaler_file}'")
         # print(f"Statistics saved as '{stats_file}'")
-        model_path = os.path.join("ml_lib",models_folder, f"{company_name}_trained_model.keras")
+        model_path = os.path.join("ml_lib","trainedModels", f"{company_name}_trained_model.keras")
         model.save(model_path)
         print(f"Model saved as '{model_path}'")
         #Generate graphs for predicted vs actual values for each index
