@@ -9,6 +9,7 @@ from API import (
     risk_analyser,
     budget,
     explain_portfolio,
+    secure_test
 )
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,7 +48,7 @@ app.add_middleware(
 
 # # Uncomment when ready to enforce token verification
 app.middleware("http")(admin_access_middleware)
-app.middleware("http")(token_verification_middleware)
+# app.middleware("http")(token_verification_middleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,6 +66,7 @@ app.include_router(assets.router)
 app.include_router(budget.router)
 app.include_router(risk_analyser.router)
 app.include_router(explain_portfolio.router)
+app.include_router(secure_test.router)
 
 
 @app.get("/")

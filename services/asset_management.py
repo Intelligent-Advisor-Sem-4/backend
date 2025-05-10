@@ -85,7 +85,8 @@ def get_all_stocks(db: Session) -> list[Stock]:
 
 
 def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
-    stocks = db.query(Stock).offset(offset).limit(limit).all()
+    # Order by updated_at in descending order (most recent first)
+    stocks = db.query(Stock).order_by(Stock.updated_at.desc()).offset(offset).limit(limit).all()
 
     result = []
     for stock in stocks:
