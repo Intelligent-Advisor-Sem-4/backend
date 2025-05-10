@@ -121,6 +121,7 @@ class PredictionModel(Base):
     model_location = Column(Text)
     scaler_location = Column(Text)
     trained_upto_date = Column(Date, nullable=True)
+    data_points = Column(Integer, nullable=False)
 
     # Relationships
     target_stock = relationship("Stock", back_populates="prediction_models")
@@ -140,6 +141,7 @@ class StockPrediction(Base):
     last_actual_data_date = Column(Date, nullable=False)
     predicted_date = Column(Date, nullable=False)
     predicted_price = Column(Numeric(19, 4))
+    confidence_score = Column(Numeric(19,4),nullable=False)
 
     # Relationship
     model = relationship("PredictionModel", back_populates="predictions")

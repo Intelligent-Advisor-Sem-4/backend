@@ -198,7 +198,7 @@ def addcompany(company,db=None):
         return stock
 
 
-def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_location,last_date):
+def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_location,last_date,data_points):
     with get_db_context() as db:
         stock = addcompany(stock_symbol,db)
         existing_model = db.query(PredictionModel).filter(PredictionModel.target_stock_id == stock.stock_id).first()
@@ -206,6 +206,7 @@ def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_locati
         if existing_model:
             existing_model.latest_modified_time = datetime.utcnow()
             existing_model.trained_upto_date = last_date
+            existing_model.data_points = data_points
             db.commit()
             print(f"Updated last_modified_time for model {existing_model.model_id}.")
             return  existing_model
@@ -219,7 +220,8 @@ def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_locati
                 is_active=True,
                 model_location=model_location,
                 scaler_location=scaler_location,
-                trained_upto_date=last_date
+                trained_upto_date=last_date,
+                data_points = data_points
             )
             db.add(model)
             db.commit()
@@ -229,7 +231,7 @@ def model_regiterer(stock_symbol, time_step, rmse, model_location, scaler_locati
             print(f"Created a new model for stock {stock_symbol} with model_id {model.model_id}.")
             return model
         
-def store_prediction(model_id,last_actual_date,predicted_date,predicted_price):
+def store_prediction(model_id,last_actual_date,predicted_date,predicted_price,confidencescore):
     with get_db_context() as db:
         existing_prediction = db.query(StockPrediction).filter(StockPrediction.model_id==model_id,StockPrediction.predicted_date == predicted_date).first()
 
@@ -242,6 +244,7 @@ def store_prediction(model_id,last_actual_date,predicted_date,predicted_price):
                 existing_prediction.predicted_date = predicted_date
                 existing_prediction.predicted_price = predicted_price
                 existing_prediction.prediction_generated_at = datetime.utcnow()
+                existing_prediction.confidence_score = confidencescore
                 db.commit()
                 print(f"Updated existing prediction for model_id {model_id} with new values.")
             else:
@@ -252,7 +255,8 @@ def store_prediction(model_id,last_actual_date,predicted_date,predicted_price):
                 predicted_date = predicted_date,
                 predicted_price = predicted_price,
                 prediction_generated_at = datetime.utcnow(),
-                model_id=model_id
+                model_id=model_id,
+                confidence_score=confidencescore
                 
             )
 
