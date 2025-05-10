@@ -1,6 +1,10 @@
 from enum import Enum
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class LLMProvider(Enum):
@@ -26,7 +30,6 @@ def _create_client(llm_provider: LLMProvider):
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         return genai.Client(api_key=api_key)
-
 
     elif llm_provider == LLMProvider.WRITER:
         from openai import OpenAI

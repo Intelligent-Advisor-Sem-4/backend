@@ -1,6 +1,3 @@
-import os
-from locale import currency
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -8,7 +5,7 @@ from unittest.mock import MagicMock
 from db.dbConnect import get_db
 
 from main import app  # Assuming the FastAPI app is defined in main.py
-from tests.API.HEADER import BEARER_TOKEN
+from tests.GROUP40.API.HEADER import BEARER_TOKEN
 
 # Add the bearer token to the headers
 HEADERS = {"Authorization": f"Bearer {BEARER_TOKEN}"}
