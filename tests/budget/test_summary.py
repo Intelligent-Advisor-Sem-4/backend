@@ -1,45 +1,41 @@
+from datetime import datetime
 from enum import Enum
-from datetime import datetime, timedelta, timezone
-import os
-from typing import Optional
-import openai
-from pydantic import BaseModel
-from collections import defaultdict
-import pytest
-from sqlalchemy import create_engine, Column, Integer, String, Text, Numeric, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.orm import sessionmaker, relationship, backref
+from typing import List, Dict, Optional
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timedelta
+from sqlalchemy import Column, String, DateTime, Enum as SQLEnum, Integer, Boolean, JSON, Date, ForeignKey, Numeric, BigInteger, \
+    Text
+from sqlalchemy.orm import relationship, backref, DeclarativeBase
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from datetime import datetime, timezone
+import enum
 import uuid
-from unittest.mock import Mock
-from pydantic import ConfigDict
-# SQLAlchemy setup
-from sqlalchemy.orm import DeclarativeBase
 
+# SQLAlchemy 2.0 base class
 class Base(DeclarativeBase):
     pass
-# Enum definitions
-class AccessLevel(str, Enum):
+
+# Create an enum class for access levels
+class AccessLevel(str, enum.Enum):
     ADMIN = "admin"
     USER = "user"
 
-class Gender(str, Enum):
+class Gender(str, enum.Enum):
     MALE = "male"
     FEMALE = "female"
     UNDEFINED = "undefined"
 
-class TransactionType(str, Enum):
-    INCOME = "income"
-    EXPENSE = "expense"
-
-# Database models
 class UserModel(Base):
     __tablename__ = "users"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     birthday = Column(DateTime, nullable=False)
-    gender = Column(SQLEnum(Gender), nullable=False)  # Note: Using SQLEnum here
+    gender = Column(SQLEnum(Gender), nullable=False)
     username = Column(String(50), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
@@ -47,23 +43,11 @@ class UserModel(Base):
     access_level = Column(SQLEnum(AccessLevel), default=AccessLevel.USER, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-class BudgetGoal(Base):
-    __tablename__ = "budget_goal"
+class TransactionType(str, enum.Enum):
+    INCOME = "income"
+    EXPENSE = "expense"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
-    title = Column(Text, nullable=False)
-    category = Column(Text, nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)
-    deadline = Column(DateTime(timezone=True), nullable=False)
-
-    user = relationship("UserModel", backref=backref("budget_goal", lazy="dynamic"))
-
-    def __repr__(self):
-        return f"<BudgetGoal(id={self.id}, title='{self.title}', amount={self.amount})>"
-
-class Transaction(Base):
+class TransactionModel(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -79,7 +63,7 @@ class Transaction(Base):
     def __repr__(self):
         return f"<Transaction(id={self.id}, type='{self.type}', amount={self.amount})>"
 
-# Pydantic schemas
+# Transaction Schemas
 class TransactionBase(BaseModel):
     type: TransactionType
     reason: str
@@ -87,11 +71,24 @@ class TransactionBase(BaseModel):
     amount: float
     user_id: str
 
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={
+            "example": {
+                "type": "income",
+                "reason": "Salary payment",
+                "category": "salary",
+                "amount": 1000.00,
+                "user_id": "user-123"
+            }
+        }
+    )
+
 class TransactionCreate(TransactionBase):
     created_at: datetime = datetime.now()
     date: str
 
-class TransactionModel(TransactionBase):
+class Transaction(TransactionBase):
     id: int
     created_at: datetime
 
@@ -103,200 +100,301 @@ class TransactionUpdate(BaseModel):
     category: Optional[str] = None
     amount: Optional[float] = None
 
-# Rest of your code (calculate_financial_summary, recommendations_agent, etc.) remains the same
+# Analytics Schemas
+class DailyBalance(BaseModel):
+    date: str
+    balance: float
 
+class TransactionSummary(BaseModel):
+    income: float
+    expense: float
+    balance: float
+    previous_income: float
+    previous_expense: float
+    previous_balance: float
+    transactions: List[DailyBalance]
 
-from collections import defaultdict
+class CategorySpending(BaseModel):
+    category: str
+    amount: float
 
-
-client = openai.OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key="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"
-)
-
-client1 = openai.OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key="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"
-)
-
-client2 = openai.OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key="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"
-)
-
-def calculate_financial_summary(transaction_history):
-    """Manually calculates financial metrics from transaction history"""
-    total_income = 0.0
-    total_expenses = 0.0
-    category_spending = defaultdict(float)
+def get_transaction_summary(db: Session, user_id: str) -> TransactionSummary:
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    sixty_days_ago = datetime.now() - timedelta(days=60)
     
-    for transaction in transaction_history:
-        amount = transaction['amount']  # Assuming amount is the last element
-        if transaction['type'].lower() == 'income':  # Assuming type is at index 3
-            total_income += amount
+    # Current period (last 30 days)
+    income = db.query(func.sum(TransactionModel.amount))\
+        .filter(
+            TransactionModel.user_id == user_id,
+            TransactionModel.type == TransactionType.INCOME,
+            TransactionModel.created_at >= thirty_days_ago
+        )\
+        .scalar() or 0
+    
+    expense = db.query(func.sum(TransactionModel.amount))\
+        .filter(
+            TransactionModel.user_id == user_id,
+            TransactionModel.type == TransactionType.EXPENSE,
+            TransactionModel.created_at >= thirty_days_ago
+        )\
+        .scalar() or 0
+    
+    # Previous period (30-60 days ago)
+    previous_income = db.query(func.sum(TransactionModel.amount))\
+        .filter(
+            TransactionModel.user_id == user_id,
+            TransactionModel.type == TransactionType.INCOME,
+            TransactionModel.created_at >= sixty_days_ago,
+            TransactionModel.created_at < thirty_days_ago
+        )\
+        .scalar() or 0
+    
+    previous_expense = db.query(func.sum(TransactionModel.amount))\
+        .filter(
+            TransactionModel.user_id == user_id,
+            TransactionModel.type == TransactionType.EXPENSE,
+            TransactionModel.created_at >= sixty_days_ago,
+            TransactionModel.created_at < thirty_days_ago
+        )\
+        .scalar() or 0
+    
+    # Daily balances
+    transactions = db.query(TransactionModel)\
+        .filter(
+            TransactionModel.user_id == user_id,
+            TransactionModel.created_at >= sixty_days_ago
+        )\
+        .order_by(TransactionModel.created_at.asc())\
+        .all()
+    
+    daily_balances = {}
+    for transaction in transactions:
+        date_str = transaction.created_at.date().isoformat()
+        if date_str not in daily_balances:
+            daily_balances[date_str] = 0
+        
+        if transaction.type == TransactionType.INCOME:
+            daily_balances[date_str] += float(transaction.amount)
         else:
-            total_expenses += amount
-            category = transaction['category']  # Assuming category is at index 5
-            category_spending[category] += amount
+            daily_balances[date_str] -= float(transaction.amount)
     
-    net_savings = total_income - total_expenses
+    daily_balances_list = [
+        DailyBalance(date=date, balance=balance)
+        for date, balance in sorted(daily_balances.items())
+    ]
     
-    # Calculate top spending categories
-    total_spending = sum(category_spending.values())
-    top_categories = []
-    if total_spending > 0:
-        top_categories = sorted(
-            [(cat, (amt/total_spending)*100) for cat, amt in category_spending.items()],
-            key=lambda x: x[1],
-            reverse=True
-        )[:3]  # Get top 3 categories
-    
-    return {
-        "total_income": total_income,
-        "total_expenses": total_expenses,
-        "net_savings": net_savings,
-        "top_spending_categories": top_categories
-    }
-
-def recommendations_agent(transaction_history,client):
-    prompt = f"""
-    Analyze this transaction history for the past month and provide specific optimization recommendations and Any urgent alerts
-
-    Transaction History: [(date, type, reason, category, amount )]
-    {transaction_history}
-
-    Just give me a text response in this format
-    recomendation1,recomendation2,recomendation3,...|alert1,alert2,alert3,...
-    """
-    
-    completion = client.chat.completions.create(
-        model="writer/palmyra-fin-70b-32k",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,  # Lower for more factual analysis
-        response_format={"type": "json_object"}
+    return TransactionSummary(
+        income=float(income),
+        expense=float(expense),
+        balance=float(income - expense),
+        previous_income=float(previous_income),
+        previous_expense=float(previous_expense),
+        previous_balance=float(previous_income - previous_expense),
+        transactions=daily_balances_list
     )
 
-    recomendations, alerts = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|") 
-    return recomendations.split(","),alerts.split(",")
+# Test code
+import pytest
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+import decimal
 
-def budget_analyst_agent(transaction_history,clients):
-    """Analyzes past month's spending patterns and gives recommendations"""
-    data = []
-    for txn in transaction_history:
-        data.append((txn['date'],txn['type'],txn['reason'],txn['category'],txn['amount']))
+# Test database setup
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    if len(data)==0:
-        r,a = [],['None']
-    else:
-        r,a = recommendations_agent(data,clients[1])
-    return {
-        "summary": calculate_financial_summary(transaction_history),
-        "assessment": "",
-        "recommendations": r,
-        "alerts": a
-    }
-
-# Test data
-SAMPLE_TRANSACTIONS = [
-    {
-        "date": (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"),
-        "type": TransactionType.INCOME,
-        "reason": "Salary",
-        "category": "Income",
-        "amount": 3000.00,
-        "user_id": "test_user"
-    },
-    {
-        "date": (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-        "type": TransactionType.EXPENSE,
-        "reason": "Groceries",
-        "category": "Food",
-        "amount": 150.50,
-        "user_id": "test_user"
-    },
-    {
-        "date": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
-        "type": TransactionType.EXPENSE,
-        "reason": "Dinner",
-        "category": "Food",
-        "amount": 75.25,
-        "user_id": "test_user"
-    },
-    {
-        "date": (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        "type": TransactionType.EXPENSE,
-        "reason": "Electricity",
-        "category": "Utilities",
-        "amount": 120.00,
-        "user_id": "test_user"
-    }
-]
-
-@pytest.fixture
-def mock_clients():
-    return [None, MockLLMClient()]
-
-def test_calculate_financial_summary():
-    result = calculate_financial_summary(SAMPLE_TRANSACTIONS)
-    
-    assert result["total_income"] == 3000.00
-    assert result["total_expenses"] == pytest.approx(150.50 + 75.25 + 120.00)
-    assert result["net_savings"] == pytest.approx(3000.00 - (150.50 + 75.25 + 120.00))
-    
-    # Test top categories calculation
-    assert len(result["top_spending_categories"]) <= 3
-    if result["top_spending_categories"]:
-        assert result["top_spending_categories"][0][0] == "Food"  # Should be top category
-
-def test_calculate_financial_summary_empty():
-    result = calculate_financial_summary([])
-    
-    assert result["total_income"] == 0.0
-    assert result["total_expenses"] == 0.0
-    assert result["net_savings"] == 0.0
-    assert result["top_spending_categories"] == []
-
-def test_budget_analyst_agent(mock_clients):
-    result = budget_analyst_agent(SAMPLE_TRANSACTIONS, mock_clients)
-    
-    assert isinstance(result, dict)
-    assert "summary" in result
-    assert "recommendations" in result
-    assert "alerts" in result
-    
-    assert len(result["recommendations"]) > 0
-    assert isinstance(result["alerts"], list)
-
-def test_budget_analyst_agent_empty(mock_clients):
-    result = budget_analyst_agent([], mock_clients)
-    
-    assert result["summary"]["total_income"] == 0.0
-    assert result["alerts"] == ["None"]
-
-# Database tests
-class MockLLMClient:
-    def __init__(self):
-        self.chat = self  # Make chat attribute return self
-        self.completions = self  # Make completions attribute return self
-    
-    def create(self, model, messages, temperature, response_format):
-        return type('MockResponse', (), {
-            "choices": [
-                type('MockChoice', (), {
-                    "message": type('MockMessage', (), {
-                        "content": '{"response":"Reduce food spending,Review utility bills,Consider meal planning|High food spending,None"}'
-                    })
-                })
-            ]
-        })
-
-@pytest.fixture
-def mock_clients():
-    return [client, client1, client2]  # Now this will return properly structured mock
+# Fixtures
+@pytest.fixture(scope="module")
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
-    Session = sessionmaker(bind=engine)
-    Base.metadata.create_all(engine)
-    session = Session()
-    yield session
-    session.close()
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+    
+    db = TestingSessionLocal()
+    
+    # Create a test user
+    test_user = UserModel(
+        id="test-user-123",
+        name="Test User",
+        birthday=datetime.now(),
+        gender=Gender.MALE,
+        username="testuser",
+        password="hashedpassword",
+        email="test@example.com",
+        access_level=AccessLevel.USER
+    )
+    db.add(test_user)
+    db.commit()
+    
+    yield db
+    
+    db.close()
+    Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture
+def setup_transactions(db_session):
+    # Clear existing transactions
+    db_session.query(TransactionModel).delete()
+    db_session.commit()
+    
+    # Helper function to create transactions
+    def create_transaction(days_ago: int, amount: float, type: TransactionType, category: str = "general", reason: str = "test"):
+        created_at = datetime.now() - timedelta(days=days_ago)
+        transaction = TransactionModel(
+            type=type,
+            reason=reason,
+            category=category,
+            amount=decimal.Decimal(amount),
+            user_id="test-user-123",
+            created_at=created_at
+        )
+        db_session.add(transaction)
+    
+    return create_transaction
+
+def test_empty_transaction_summary(db_session):
+    # Clear all transactions
+    db_session.query(TransactionModel).delete()
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    assert summary.income == 0
+    assert summary.expense == 0
+    assert summary.balance == 0
+    assert summary.previous_income == 0
+    assert summary.previous_expense == 0
+    assert summary.previous_balance == 0
+    assert len(summary.transactions) == 0
+
+def test_only_income_transactions(db_session, setup_transactions):
+    setup_transactions(10, 100.0, TransactionType.INCOME)
+    setup_transactions(40, 200.0, TransactionType.INCOME)
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    assert summary.income == 100.0
+    assert summary.expense == 0
+    assert summary.balance == 100.0
+    assert summary.previous_income == 200.0
+    assert summary.previous_expense == 0
+    assert summary.previous_balance == 200.0
+    assert len(summary.transactions) == 2
+
+def test_only_expense_transactions(db_session, setup_transactions):
+    setup_transactions(15, 50.0, TransactionType.EXPENSE)
+    setup_transactions(45, 75.0, TransactionType.EXPENSE)
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    assert summary.income == 0
+    assert summary.expense == 50.0
+    assert summary.balance == -50.0
+    assert summary.previous_income == 0
+    assert summary.previous_expense == 75.0
+    assert summary.previous_balance == -75.0
+    assert len(summary.transactions) == 2
+
+def test_mixed_transactions(db_session, setup_transactions):
+    # Current period transactions
+    setup_transactions(5, 100.0, TransactionType.INCOME, "salary", "paycheck")
+    setup_transactions(10, 50.0, TransactionType.INCOME, "bonus", "yearly bonus")
+    setup_transactions(15, 30.0, TransactionType.EXPENSE, "food", "groceries")
+    setup_transactions(20, 20.0, TransactionType.EXPENSE, "entertainment", "movie tickets")
+    
+    # Previous period transactions
+    setup_transactions(35, 80.0, TransactionType.INCOME, "salary", "paycheck")
+    setup_transactions(40, 20.0, TransactionType.INCOME, "bonus", "referral bonus")
+    setup_transactions(45, 40.0, TransactionType.EXPENSE, "food", "dining out")
+    setup_transactions(50, 10.0, TransactionType.EXPENSE, "transportation", "bus fare")
+    
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    # Current period assertions
+    assert summary.income == 150.0
+    assert summary.expense == 50.0
+    assert summary.balance == 100.0
+    
+    # Previous period assertions
+    assert summary.previous_income == 100.0
+    assert summary.previous_expense == 50.0
+    assert summary.previous_balance == 50.0
+    
+    assert len(summary.transactions) == 8
+
+def test_daily_balance_calculation(db_session, setup_transactions):
+    same_day = datetime.now() - timedelta(days=10)
+    
+    db_session.add(TransactionModel(
+        type=TransactionType.INCOME,
+        reason="salary",
+        category="work",
+        amount=decimal.Decimal(100.0),
+        user_id="test-user-123",
+        created_at=same_day
+    ))
+    
+    db_session.add(TransactionModel(
+        type=TransactionType.EXPENSE,
+        reason="shopping",
+        category="retail",
+        amount=decimal.Decimal(40.0),
+        user_id="test-user-123",
+        created_at=same_day
+    ))
+    
+    db_session.add(TransactionModel(
+        type=TransactionType.EXPENSE,
+        reason="dinner",
+        category="food",
+        amount=decimal.Decimal(30.0),
+        user_id="test-user-123",
+        created_at=same_day
+    ))
+    
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    assert len(summary.transactions) == 1
+    assert summary.transactions[0].balance == 30.0
+
+def test_transactions_outside_period(db_session, setup_transactions):
+    setup_transactions(65, 500.0, TransactionType.INCOME)
+    setup_transactions(70, 200.0, TransactionType.EXPENSE)
+    db_session.commit()
+    
+    summary = get_transaction_summary(db_session, "test-user-123")
+    
+    assert summary.income == 0
+    assert summary.expense == 0
+    assert summary.balance == 0
+    assert len(summary.transactions) == 0
+
+def test_transaction_summary_model_validation():
+    test_data = {
+        "income": 100.0,
+        "expense": 50.0,
+        "balance": 50.0,
+        "previous_income": 80.0,
+        "previous_expense": 40.0,
+        "previous_balance": 40.0,
+        "transactions": [
+            {"date": "2023-01-01", "balance": 20.0},
+            {"date": "2023-01-02", "balance": 30.0}
+        ]
+    }
+    
+    summary = TransactionSummary(**test_data)
+    
+    assert summary.income == 100.0
+    assert summary.expense == 50.0
+    assert summary.balance == 50.0
+    assert len(summary.transactions) == 2
+    assert summary.transactions[0].date == "2023-01-01"
+    assert summary.transactions[0].balance == 20.0
