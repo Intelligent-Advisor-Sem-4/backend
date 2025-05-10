@@ -29,7 +29,6 @@ def fetch_tbill_data():
     if returns.empty:
         raise ValueError("No data was fetched for the 10-year treasury yield.")
     
-    print(returns)
     
     return returns
 

@@ -21,7 +21,6 @@ def get_risk_free_rate():
     
     rate_percent = tnx_data.iloc[-1]
     risk_free_rate = rate_percent / 100  # Convert to decimal
-    print(f"10-Year Treasury Yield: {risk_free_rate:.4f}")
     return risk_free_rate
 
 # Get the mu value using the MU_METHOD specified in the config
@@ -72,6 +71,8 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     # Compute max volatility using max Sharpe
     ef_clone.max_sharpe()
     _, max_vol, _ = ef_clone.portfolio_performance()
+    #max_vol = max(np.std(price_data[ticker].pct_change().dropna()) * np.sqrt(252) for ticker in tickers)
+
 
     # Dynamically map user's risk score to volatility
     target_volatility = min_vol + (risk_score_percent / 100) * (max_vol - min_vol)
@@ -87,7 +88,7 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     ef_final.efficient_risk(target_volatility)
 
     cleaned_weights = ef_final.clean_weights()
-    perf = ef_final.portfolio_performance(verbose=False)
+    perf = ef_final.portfolio_performance(verbose=False, risk_free_rate=RISK_FREE_RATE)
     
     return cleaned_weights, perf, mu, cov
 
