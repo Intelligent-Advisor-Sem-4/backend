@@ -10,7 +10,6 @@ from core.password import get_password_hash
 from models import Base, UserModel
 from models.models import Gender, AccessLevel
 
-
 # Load environment variables from .env file
 load_dotenv()
 
@@ -24,8 +23,16 @@ DB_PORT = os.getenv("DB_PORT")
 # Create PostgresSQL connection URL
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-
-engine = create_engine(DATABASE_URL)
+# python
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,  # number of connections to keep open
+    max_overflow=10,  # number of additional connections allowed
+    pool_timeout=30,  # seconds to wait before giving up on a connection
+    pool_recycle=1800,  # seconds after which a connection is recycled
+    pool_pre_ping=True,
+    echo=True,  # Set to True to see SQL queries in the console
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
