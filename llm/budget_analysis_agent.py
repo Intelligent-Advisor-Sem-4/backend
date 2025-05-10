@@ -35,24 +35,6 @@ def calculate_financial_summary(transaction_history):
         "top_spending_categories": top_categories
     }
 
-# def assesment_agent(transaction_history,client):
-#     prompt = f"""
-#     Analyze this transaction history for the past month and provide an Assessment of spending health (Good/Moderate/Poor)
-
-#     Transaction History: [(date, type, reason, category, amount )]
-#     {transaction_history}
-
-#     Just give me a text response
-#     """
-    
-#     completion = client.chat.completions.create(
-#         model="writer/palmyra-fin-70b-32k",
-#         messages=[{"role": "user", "content": prompt}],
-#         temperature=0.1,  # Lower for more factual analysis
-#         response_format={"type": "json_object"}
-#     )
-#     return completion.choices[0].message.content
-
 def recommendations_agent(transaction_history,client):
     prompt = f"""
     Analyze this transaction history for the past month and provide specific optimization recommendations and Any urgent alerts
@@ -73,24 +55,6 @@ def recommendations_agent(transaction_history,client):
 
     recomendations, alerts = completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split("|") 
     return recomendations.split(","),alerts.split(",")
-
-# def alert_agent(transaction_history,client):
-#     prompt = f"""
-#     Analyze this transaction history for the past month and provide Any urgent alerts
-
-#     Transaction History: [(date, type, reason, category, amount )]
-#     {transaction_history}
-
-#     Just give me a text response seperated by commas
-#     """
-    
-#     completion = client.chat.completions.create(
-#         model="writer/palmyra-fin-70b-32k",
-#         messages=[{"role": "user", "content": prompt}],
-#         temperature=0.1,  # Lower for more factual analysis
-#         response_format={"type": "json_object"}
-#     )
-#     return completion.choices[0].message.content.replace("\n","").replace("\\","").replace("\n","").replace("\"","").split(",")
 
 def budget_analyst_agent(transaction_history,clients):
     """Analyzes past month's spending patterns and gives recommendations"""
