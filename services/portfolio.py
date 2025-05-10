@@ -6,7 +6,7 @@ from pypfopt.expected_returns import mean_historical_return,capm_return,ema_hist
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
 from utils.finance import fetch_price_data, fetch_tbill_data
-from utils.portfolioconfig import MU_METHOD, BENCHMARK_TICKER,RISK_FREE_RATE
+from utils.portfolioconfig import MU_METHOD, BENCHMARK_TICKER,RISK_FREE_RATE,NUMBER_OF_SIMULATIONS
 from classes.profile import Input
 
 
@@ -139,7 +139,8 @@ def build_portfolio_response(request: Input):
     monte_carlo_result = simulate_monte_carlo_for_weights(
         mu, cov, weights,
         request.investment_amount, request.target_amount,
-        request.years
+        request.years,
+        num_simulations=NUMBER_OF_SIMULATIONS
     )
 
     return {
