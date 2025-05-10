@@ -11,19 +11,9 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 from datetime import datetime, timedelta
-from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,store_prediction,get_all_available_companies
+from ml_lib.stock_market_handlerV2 import model_regiterer,get_model_details,store_prediction
 
 
-
-# def getStockData(company, starting_date=None, ending_date=None, size=None):
-#     response = yf.Ticker(company).history(period='max', interval='1d')
-#     if starting_date:
-#         response = response.loc[response.index >= starting_date]
-#     if ending_date:
-#         response = response.loc[response.index <= ending_date]
-#     if size:
-#         return response.tail(size)
-#     return response
 def predict_with_uncertainty(model, input_data, scaler, n_iter=50):
     predictions = []
     for _ in range(n_iter):
@@ -33,13 +23,16 @@ def predict_with_uncertainty(model, input_data, scaler, n_iter=50):
     mean_pred = predictions.mean(axis=0).flatten()
     std_pred = predictions.std(axis=0).flatten()
     mean_pred = scaler.inverse_transform(mean_pred.reshape(-1, 1)).flatten()
-    std_pred = std_pred * scaler.data_range_[0]  # rescale std dev to original scale
+    std_pred = scaler.inverse_transform((std_pred * scaler.data_range_[0]).reshape(-1, 1)).flatten()
     return mean_pred, std_pred
 
 
+@tf.keras.utils.register_keras_serializable()
 class LSTMWithDropout(tf.keras.Model):
-    def __init__(self, units=128, output_dim=7):
-        super().__init__()
+    def __init__(self, units=128, output_dim=7, **kwargs):
+        super().__init__(**kwargs)
+        self.units = units
+        self.output_dim = output_dim
         self.lstm = tf.keras.layers.LSTM(units)
         self.dropout = tf.keras.layers.Dropout(0.2)
         self.dense = tf.keras.layers.Dense(output_dim)
@@ -48,9 +41,23 @@ class LSTMWithDropout(tf.keras.Model):
         x = self.lstm(inputs)
         x = self.dropout(x, training=training)
         return self.dense(x)
-def getStockData(company, starting_date=None, ending_date=None, size=None):
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "units": self.units,
+            "output_dim": self.output_dim
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+
+def getStockData(company, starting_date=None, ending_date=None, size=None,size_dir = -1):
     response = yf.Ticker(company).history(period='max', interval='1d')
-    print(response.tail())
+    # print(response.tail())
     last_close_price = response['Close'].iloc[-1] if not response.empty else None
     next_last_close_price = response['Close'].iloc[-2] if len(response) > 1 else None
     perce = ((last_close_price-next_last_close_price)/next_last_close_price)*100
@@ -58,13 +65,20 @@ def getStockData(company, starting_date=None, ending_date=None, size=None):
         response = response.loc[response.index >= starting_date]
     if ending_date:
         response = response.loc[response.index <= ending_date]
-    if size:
+    if size and size_dir== 1:
+        response = response.head(size)
+    elif size:
         response = response.tail(size)
     last_date = response.index[-1] if not response.empty else None #last date of sliced data
+    print("point 3 pass")
     return [response,last_close_price,perce,last_date]
+
+
+
 def mean_absolute_percentage_error(y_true, y_pred): 
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
 def trainer(company_name,batch=32,input_dim=90,lc=128):
     stdata = getStockData(company_name)
     close_prices_b = stdata[0]['Close'].values
@@ -80,13 +94,13 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
 
         X = np.array(X).reshape(-1, input_dim, 1)
         Y = np.array(Y)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, shuffle=False)
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.05, shuffle=False)
         model = LSTMWithDropout(lc, output_dim)
         model.compile(optimizer='adam', loss=tf.keras.losses.Huber())
         model.summary()
         early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss',patience=10,restore_best_weights=True,verbose=1)
 
-        model.fit(X_train,Y_train,epochs=100,batch_size=batch,callbacks=[early_stop],verbose=1)
+        model.fit(X_train,Y_train,epochs=2,batch_size=batch,callbacks=[early_stop],verbose=1)
 
         prediction = model.predict(X_test)
         final_rmse = math.sqrt(mean_squared_error(Y_test.flatten(), prediction.flatten()))
@@ -111,16 +125,23 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
         model.save(model_path)
         print(f"Model saved as '{model_path}'")
         #Generate graphs for predicted vs actual values for each index
-        for i in range(output_dim):
-            plt.figure(figsize=(8, 5))
-            plt.plot(range(len(Y_test)), Y_test[:, i], label=f"Actual Value (Index {i})", color="green", marker="x")
-            plt.plot(range(len(prediction)), prediction[:, i], label=f"Predicted Value (Index {i})", color="blue", marker="o")
-            plt.xlabel("Sample Index")
-            plt.ylabel("Price")
-            plt.title(f"Actual vs Predicted Values for Index {i}")
-            plt.legend()
-            plt.grid()
-            plt.show()
+        # images_folder = os.path.join("ml_lib", "images")
+        # if not os.path.exists(images_folder):
+        #     os.makedirs(images_folder)
+
+        # for i in range(output_dim):
+        #     plt.figure(figsize=(8, 5))
+        #     plt.plot(range(len(Y_test)), Y_test[:, i], label=f"Actual Value (Index {i})", color="green", marker="x")
+        #     plt.plot(range(len(prediction)), prediction[:, i], label=f"Predicted Value (Index {i})", color="blue", marker="o")
+        #     plt.xlabel("Sample Index")
+        #     plt.ylabel("Price")
+        #     plt.title(f"Actual vs Predicted Values {i+1} st/nd/rd/th day")
+        #     plt.legend()
+        #     plt.grid()
+        #     graph_path = os.path.join(images_folder, f"{company_name}_{i}_graph.png")
+        #     plt.savefig(graph_path)
+        #     plt.close()
+        #     print(f"Graph saved as '{graph_path}'")
         model_regiterer(company_name,time_step=input_dim,rmse=final_rmse,model_location=model_path,scaler_location=scaler_file,last_date=stdata[-1])
         return model,final_rmse
     except Exception as err:
@@ -141,9 +162,10 @@ def trainer(company_name,batch=32,input_dim=90,lc=128):
 
 def predict(company_name, date):
     input_dim = 90
-    print(company_name,date)
+    # print(company_name,date)
     model_detail = get_model_details(company_name)
     if model_detail == None:
+        print("no model details")
         return None
     model_path = model_detail.model_location
     if not os.path.exists(model_path):
@@ -181,7 +203,8 @@ def predict(company_name, date):
                     predicted_date=predicted_date,
                     predicted_price=float(mean_prediction[i])
                 )
-
+        # print(std_prediction)
+        print("=================================================================================================================")
         return output
 
 

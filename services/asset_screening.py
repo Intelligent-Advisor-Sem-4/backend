@@ -4,7 +4,6 @@ import yfinance as yf
 from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal, SECTOR_SCREENER_QUERIES
 from sqlalchemy.orm import Session
 
-from db.dbConnect import get_db
 from models.models import Stock  # assuming your model is in models.py
 from services.utils import calculate_shallow_risk
 
@@ -96,15 +95,15 @@ def run_stock_screen(db: Session, screen_type: ScreenerType = ScreenerType.MOST_
     return response
 
 
-if __name__ == "__main__":
-    # Example usage
-    db_gen = get_db()
-    session = next(db_gen)
-    try:
-        # Create a new stock
-        try:
-            run_stock_screen(db=session, screen_type=ScreenerType.TECHNOLOGY, offset=0, size=10, minimal=True)
-        except ValueError as e:
-            print(e)
-    finally:
-        db_gen.close()
+# if __name__ == "__main__":
+#     # Example usage
+#     db_gen = get_db()
+#     session = next(db_gen)
+#     try:
+#         # Create a new stock
+#         try:
+#             run_stock_screen(db=session, screen_type=ScreenerType.TECHNOLOGY, offset=0, size=10, minimal=True)
+#         except ValueError as e:
+#             print(e)
+#     finally:
+#         db_gen.close()

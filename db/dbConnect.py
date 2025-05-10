@@ -23,8 +23,16 @@ DB_PORT = os.getenv("DB_PORT")
 # Create PostgresSQL connection URL
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-
-engine = create_engine(DATABASE_URL)
+# python
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,  # number of connections to keep open
+    max_overflow=10,  # number of additional connections allowed
+    pool_timeout=30,  # seconds to wait before giving up on a connection
+    pool_recycle=1800,  # seconds after which a connection is recycled
+    pool_pre_ping=True,
+    echo=True,  # Set to True to see SQL queries in the console
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -50,7 +58,7 @@ def seed_user():
                 "password": get_password_hash("123"),
                 "email": "johndoe@example.com",
                 "access_level": AccessLevel.USER,
-                "created_at": datetime.now(timezone.utc)
+                "created_at": datetime.now(timezone.utc),
             },
             {
                 "id": uuid4(),
@@ -61,15 +69,19 @@ def seed_user():
                 "password": get_password_hash("admin123"),
                 "email": "admin@example.com",
                 "access_level": AccessLevel.ADMIN,
-                "created_at": datetime.now(timezone.utc)
-            }
+                "created_at": datetime.now(timezone.utc),
+            },
         ]
 
         for user_data in users_to_seed:
-            existing_user = db.query(UserModel).filter(
-                (UserModel.username == user_data["username"]) |
-                (UserModel.email == user_data["email"])
-            ).first()
+            existing_user = (
+                db.query(UserModel)
+                .filter(
+                    (UserModel.username == user_data["username"])
+                    | (UserModel.email == user_data["email"])
+                )
+                .first()
+            )
 
             if existing_user:
                 print(f"User '{user_data['username']}' already exists. Skipping.")
@@ -111,12 +123,13 @@ def reset_database():
     seed_database()
     print("Database reset successfully.")
 
+
 # reset_database()
 if __name__ == "__main__":
     # Uncomment the following line to reset the database
-    reset_database()
+    # reset_database()
     # Uncomment the following line to create tables
-    # create_tables()
+    create_tables()
     # Uncomment the following line to drop tables
     # drop_tables()
     pass
