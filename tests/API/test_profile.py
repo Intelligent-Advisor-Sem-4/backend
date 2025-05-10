@@ -97,13 +97,14 @@ def test_get_risk_score_invalid_user_id():
 
 # Test case for `/profile/risk_score` POST endpoint
 def test_post_risk_score_success():
-    params = {
+    form_data = {
         "user_id": "39a9165a-5693-45f1-8848-18f3da354ea2",
-        "score": 4.5
+        "score": "4.5",                                    # form-encoded values are strings
     }
-    response = client.post("/profile/risk_score", params=params)
+    response = client.post("/profile/risk_score",data=form_data)
     assert response.status_code == 201  # Created
     response_content = response.json()
     assert "score" in response_content
-    assert isinstance(response_content["score"], RiskScoreOut)
-    assert response_content["score"] == params["score"]
+    assert isinstance(response_content["score"], float)
+    assert response_content["score"] == 4.5
+
