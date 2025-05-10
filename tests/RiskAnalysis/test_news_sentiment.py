@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime
 from services.risk_analysis.news_sentiment import NewsSentimentService, parse_llm_response
 from classes.News import NewsArticle
-from classes.Risk_Components import SentimentAnalysisResponse
 
 
 class TestNewsSentimentService:
