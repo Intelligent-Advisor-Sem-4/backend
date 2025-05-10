@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, DateTime, Enum, Integer, Boolean, JSON, D
     Text
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime, timezone
 import enum
@@ -141,7 +141,7 @@ class StockPrediction(Base):
     last_actual_data_date = Column(Date, nullable=False)
     predicted_date = Column(Date, nullable=False)
     predicted_price = Column(Numeric(19, 4))
-    confidence_score = Column(Numeric(19,4),nullable=False)
+    confidence_score = Column(Numeric(19, 4), nullable=False)
 
     # Relationship
     model = relationship("PredictionModel", back_populates="predictions")
@@ -255,6 +255,7 @@ class Transaction(Base):
 
     def __repr__(self):
         return f"<Transaction(id={self.id}, type='{self.type}', amount={self.amount})>"
+
 
 class RiskAnalysis(Base):
     __tablename__ = "risk_level"
