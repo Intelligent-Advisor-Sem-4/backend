@@ -48,7 +48,7 @@ app.add_middleware(
 
 # # Uncomment when ready to enforce token verification
 app.middleware("http")(admin_access_middleware)
-app.middleware("http")(token_verification_middleware)
+# app.middleware("http")(token_verification_middleware)
 
 app.add_middleware(
     CORSMiddleware,
