@@ -206,7 +206,7 @@ def predict(company_name, date):
                         predicted_price=float(mean_prediction[i]),
                         confidencescore=float(std_prediction[i])
                     )
-            print(std_prediction)
+            # print(std_prediction)
             print("=================================================================================================================")
             return output
     except Exception as e:
