@@ -57,6 +57,14 @@ Change the status to 'ACTIVE' when ready.
         db.add(stock)
         db.commit()
         db.refresh(stock)
+
+        # Calculate initial risk score for the newly added stock
+        try:
+            analyser = RiskAnalysis(ticker=symbol, db=db, db_stock=stock)
+            analyser.get_risk_score_and_update()
+        except Exception as e:
+            print(f"Error calculating initial risk score for {symbol}: {str(e)}")
+
         return stock
 
     except Exception as e:
@@ -83,6 +91,7 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
 def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
 
+
 def update_all_stock_risk_scores(db: Session) -> None:
     """Update risk scores for all stocks in the database."""
     stocks = db.query(Stock).all()
@@ -103,17 +112,14 @@ def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockRe
 
     result = []
     for stock in stocks:
-        # Get risk score using the analyzer
-        analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
-        risk_update = analyser.get_risk_score_and_update()
-
-        # Create response model using the RiskScoreUpdate object
+        # Use existing risk score from DB instead of recalculating
+        # The daily scheduled job will keep these scores updated
         result.append(
             StockResponse(
                 stock_id=int(stock.stock_id if stock.stock_id else 0),
                 ticker_symbol=str(stock.ticker_symbol),
                 asset_name=str(stock.asset_name) if stock.asset_name else None,
-                risk_score=float(risk_update.risk_score) if risk_update.risk_score else None,
+                risk_score=float(stock.risk_score) if stock.risk_score else None,
                 risk_score_updated=stock.risk_score_updated.isoformat() if stock.risk_score_updated else None,
                 status=AssetStatus(stock.status) if stock.status else None,  # Convert to AssetStatus enum
                 currency=str(stock.currency) if stock.currency else None,
