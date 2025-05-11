@@ -1,0 +1,15 @@
+name: Daily Risk Score Update
+
+on:
+  schedule:
+    # Runs at 01:00 UTC every day
+    - cron: '0 1 * * *'
+  workflow_dispatch:  # This enables manual triggering
+
+jobs:
+  update-risk-scores:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger risk score update endpoint
+        run: |
+          curl -X POST "https://api-intellifinance.shancloudservice.com/triggers/update-risk-scores"
