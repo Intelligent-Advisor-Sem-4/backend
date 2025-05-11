@@ -83,6 +83,19 @@ def update_stock_status(db: Session, stock_id: int, new_status: AssetStatus) -> 
 def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
 
+def update_all_stock_risk_scores(db: Session) -> None:
+    """Update risk scores for all stocks in the database."""
+    stocks = db.query(Stock).all()
+
+    for stock in stocks:
+        try:
+            # Get risk score using the analyzer and update it
+            analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
+            analyser.get_risk_score_and_update()
+        except Exception as e:
+            # Log error but continue processing other stocks
+            print(f"Error updating risk score for {stock.ticker_symbol}: {str(e)}")
+
 
 def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
     # Order by updated_at in descending order (most recent first)

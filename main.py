@@ -9,7 +9,8 @@ from API import (
     risk_analyser,
     budget,
     explain_portfolio,
-    secure_test
+    secure_test,
+    triggers
 )
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,6 +68,7 @@ app.include_router(budget.router)
 app.include_router(risk_analyser.router)
 app.include_router(explain_portfolio.router)
 app.include_router(secure_test.router)
+app.include_router(triggers.router)
 
 
 @app.get("/")
