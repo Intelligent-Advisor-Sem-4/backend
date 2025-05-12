@@ -1,0 +1,65 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - Production_Backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Deploy to Server
+      env:
+        HOST: ${{ secrets.HOST }}
+        USER: ${{ secrets.USER }}
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+      run: |
+        # Safely write SSH private key to file
+        printf "%s" "${SSH_KEY}" > ssh_key
+        chmod 600 ssh_key
+
+        # Define deployment path
+        DEPLOY_PATH="intellifinance/backend/"
+
+        # Sync only the code (skip virtual env, .git, __pycache__, etc.)
+        rsync -avz -e "ssh -i ssh_key -o StrictHostKeyChecking=no" \
+          --exclude '.venv' --exclude 'venv' --exclude '.git' --exclude '__pycache__' \
+          ./ ${USER}@${HOST}:${DEPLOY_PATH}
+
+        # SSH and deploy with manual commands (no aliases)
+        ssh -i ssh_key -o StrictHostKeyChecking=no ${USER}@${HOST} << EOF
+          set -e
+          cd intellifinance/backend/
+
+          # Stop the FastAPI service
+          sudo systemctl stop fastapi.service
+
+          # Stash local changes just in case
+          git stash || true
+
+          #Remove untracked
+          git clean -fd
+
+          # Pull the latest code
+          git pull
+
+          # Activate virtual environment and install requirements
+          source ../.server_env/bin/activate
+          pip install -r requirements.txt
+
+          # Start the FastAPI service
+          sudo systemctl start fastapi.service
+
+          # Show the FastAPI service status
+          sudo systemctl status fastapi.service
+
+          reboot
+        EOF
+
+        # Clean up SSH key
+        rm ssh_key

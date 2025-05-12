@@ -1,0 +1,15 @@
+__pycache__/
+env/
+my_venv/
+.venv
+.idea
+.vscode/
+*.pyc
+*.pyo
+.env
+.env.personal
+/_pycache__
+tf_env/
+__pycache__
+
+requirements.txt
