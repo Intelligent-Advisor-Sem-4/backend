@@ -12,7 +12,9 @@ from db.dbConnect import get_db
 load_dotenv()
 
 router = APIRouter()
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY") 
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 600000
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

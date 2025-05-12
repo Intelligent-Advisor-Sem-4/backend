@@ -10,15 +10,19 @@ logger = logging.getLogger(__name__)
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
 import jwt
 import os
-
-SECRET_KEY = os.getenv("SECRET_KEY")
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY") 
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 
 
 # Middleware to verify token from either cookies or Authorization header
 async def token_verification_middleware(request: Request, call_next):
+   
     origin = request.headers.get("Origin")
     logger.info(f"Request received from origin: {origin or 'Unknown'}")
 
@@ -33,6 +37,9 @@ async def token_verification_middleware(request: Request, call_next):
 
     # Check for token in cookies
     token_cookie = request.cookies.get("token")
+    # Log all values in the cookie
+  
+    print(f"Cookies received: {token_cookie}")
     if token_cookie:
         token = token_cookie
         auth_source = "cookie"
@@ -55,8 +62,9 @@ async def token_verification_middleware(request: Request, call_next):
 
     try:
         # Decode and verify token
+        print("1 pass")
+        print(type(token),type(SECRET_KEY))
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
         required_fields = ["sub", "user_id", "role"]
         for field in required_fields:
             if field not in payload:
@@ -113,7 +121,7 @@ async def token_verification_middleware(request: Request, call_next):
             content={"detail": "Invalid token"}
         )
     except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
+        logger.error(f"Authentication error: {e}")
         return JSONResponse(
             status_code=500,
             content={"detail": "Authentication error"}
