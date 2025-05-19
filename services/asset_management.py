@@ -39,20 +39,20 @@ def create_stock(db: Session, symbol: str) -> Stock:
             status=AssetStatus.PENDING,
         )
 
-        # Send email notification
-        company_name = stock.asset_name
-        email_subject = f"New Stock Added: {symbol}"
-        email_message = f"""
-A new stock has been added to the database:
+#         # Send email notification
+#         company_name = stock.asset_name
+#         email_subject = f"New Stock Added: {symbol}"
+#         email_message = f"""
+# A new stock has been added to the database:
 
-Ticker: {symbol}
-Name: {company_name}
-Exchange: {stock.exchange}
+# Ticker: {symbol}
+# Name: {company_name}
+# Exchange: {stock.exchange}
 
-Initiate the model training process for this stock.
-Change the status to 'ACTIVE' when ready.
-"""
-        send_email_notification(email_subject, email_message)
+# Initiate the model training process for this stock.
+# Change the status to 'ACTIVE' when ready.
+# """
+#         send_email_notification(email_subject, email_message)
 
         db.add(stock)
         db.commit()
