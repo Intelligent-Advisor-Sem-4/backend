@@ -1,13 +1,25 @@
 from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi.concurrency import run_in_threadpool
 import pandas as pd
 from pydantic import BaseModel
-from ml_lib.stock_predictor import getStockData, predict
+from ml_lib.stock_predictor import getStockData, predict,trainer
 from ml_lib.stock_predictorV2 import predictV2
 from ml_lib.controllers import get_stock_options, get_stock_history, get_predictions, getPredictedPricesFromDB, get_model_details
-from classes.prediction import InData, getstockhist, getpredictprice, ModelDetails
+from classes.prediction import InData, getstockhist, getpredictprice, ModelDetails,trainrequestdata
 
 app = FastAPI()
 router = APIRouter()
+
+# @router.post("/train_model")
+# async def trainsymbol(data:trainrequestdata):
+#     try:
+#         background_tasks.add_task(trainer, data.ticker_symbol)
+#         return {"message": f"Model training initiated for {data.ticker_symbol}"}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        
+
 
 @router.get("/get-active-symbols")
 async def getallsymbols():

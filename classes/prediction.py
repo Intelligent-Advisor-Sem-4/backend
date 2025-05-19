@@ -8,6 +8,9 @@ class getstockhist(BaseModel):
     ending_date: str
     symbol: str
 
+class trainrequestdata(BaseModel):
+    ticker_symbol: str
+
 class getpredictprice(BaseModel):
     ticker_symbol: str
     starting_date: str
