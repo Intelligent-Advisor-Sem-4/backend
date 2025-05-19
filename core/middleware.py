@@ -24,7 +24,7 @@ async def token_verification_middleware(request: Request, call_next):
     logger.info(f"Request received from origin: {origin or 'Unknown'}")
 
     # Allow public routes
-    open_routes = ["/auth", "/openapi.json", "/auth/user/reg", "/auth/login", "/docs", "/triggers"]
+    open_routes = ["/auth", "/openapi.json", "/auth/user/reg", "/auth/login", "/docs", "/triggers", "/config"]
     if request.url.path == "/" or request.url.path == "/budget/email" or any(
             request.url.path.startswith(route) for route in open_routes):
         return await call_next(request)
