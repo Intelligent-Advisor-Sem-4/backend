@@ -163,9 +163,13 @@ class QuantitativeRiskService:
 
     def calculate_quantitative_metrics(self, lookback_days: int = 30, use_llm: bool = True) -> QuantRiskResponse:
         """Calculate key quantitative risk metrics"""
-        print('Calculating quantitative metrics')
+        print('Calculating quantitative metrics with ', lookback_days)
+        # If loopback is less than 30 throw error
+        if lookback_days < 30:
+            raise ValueError("Lookback days must be at least 30 days")
+
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=lookback_days + 30)  # Extra data for calculations
+        start_date = end_date - timedelta(days=lookback_days)  # Extra data for calculations
 
         try:
             # Get historical price data
@@ -213,8 +217,22 @@ class QuantitativeRiskService:
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
 
-            avg_gain = gain.rolling(window=14).mean()
-            avg_loss = loss.rolling(window=14).mean()
+            # First values are simple averages
+            first_avg_gain = gain.iloc[:14].mean()
+            first_avg_loss = loss.iloc[:14].mean()
+
+            # Get Wilder's smoothing
+            avg_gain = gain.copy()
+            avg_loss = loss.copy()
+            avg_gain.iloc[:14] = np.nan
+            avg_loss.iloc[:14] = np.nan
+            avg_gain.iloc[14] = first_avg_gain
+            avg_loss.iloc[14] = first_avg_loss
+
+            # Calculate smoothed averages using Wilder's method
+            for i in range(15, len(gain)):
+                avg_gain.iloc[i] = (avg_gain.iloc[i - 1] * 13 + gain.iloc[i]) / 14
+                avg_loss.iloc[i] = (avg_loss.iloc[i - 1] * 13 + loss.iloc[i]) / 14
 
             rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs.iloc[-1]))
