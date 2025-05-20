@@ -8,6 +8,10 @@ from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
 from services.risk_analysis.analyser import RiskAnalysis
 from services.utils import calculate_shallow_risk_score
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def create_stock(db: Session, symbol: str) -> Stock:
@@ -100,13 +104,16 @@ def update_all_stock_risk_scores(db: Session) -> None:
         try:
             # Get risk score using the analyzer and update it
             print(f"Updating risk score for {stock.ticker_symbol}...")
+            logger.info(f"Updating risk score for {stock.ticker_symbol}...")
             analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
             analyser.calculate_overall_risk()
             print(f"Risk score for {stock.ticker_symbol} updated to {stock.risk_score}")
+            logger.info(f"Updating risk score for {stock.ticker_symbol}...")
             time.sleep(30)  # Pause for 30 seconds to respect API rate limits
         except Exception as e:
             # Log error but continue processing other stocks
             print(f"Error updating risk score for {stock.ticker_symbol}: {str(e)}")
+            logger.error(f"Error updating risk score for {stock.ticker_symbol}: {str(e)}")
 
 
 def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
