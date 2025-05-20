@@ -103,11 +103,29 @@ def update_all_stock_risk_scores(db: Session) -> None:
     for stock in stocks:
         try:
             # Get risk score using the analyzer and update it
-            print(f"Updating risk score for {stock.ticker_symbol}...")
             logger.info(f"Updating risk score for {stock.ticker_symbol}...")
             analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
+
+            # News sentiment Risk
+            logger.info(f"Updating news sentiment risk for {stock.ticker_symbol}...")
+            analyser.get_news_sentiment_risk(prefer_newest=False)
+
+            # Quant risk score
+            logger.info(f"Updating quantitative risk for {stock.ticker_symbol}...")
+            analyser.get_quantitative_risk()
+
+            # ESG risk score
+            logger.info(f"Updating ESG risk for {stock.ticker_symbol}...")
+            analyser.get_esg_risk()
+
+            # Anomaly risk
+            logger.info(f"Updating anomaly risk for {stock.ticker_symbol}...")
+            analyser.get_anomaly_risk()
+
+            # Overall risk
+            logger.info(f"Updating overall risk for {stock.ticker_symbol}...")
             analyser.calculate_overall_risk()
-            print(f"Risk score for {stock.ticker_symbol} updated to {stock.risk_score}")
+
             logger.info(f"Updating risk score for {stock.ticker_symbol}...")
             time.sleep(30)  # Pause for 30 seconds to respect API rate limits
         except Exception as e:
