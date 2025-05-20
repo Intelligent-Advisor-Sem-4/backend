@@ -1,11 +1,11 @@
 from datetime import datetime
+import time
 
 import yfinance as yf
 from sqlalchemy.orm import Session
 
 from classes.Asset import Asset, DB_Stock, AssetFastInfo, StockResponse
 from models.models import Stock, AssetStatus
-from services.email_service.email_service import send_email_notification
 from services.risk_analysis.analyser import RiskAnalysis
 from services.utils import calculate_shallow_risk_score
 
@@ -39,20 +39,20 @@ def create_stock(db: Session, symbol: str) -> Stock:
             status=AssetStatus.PENDING,
         )
 
-#         # Send email notification
-#         company_name = stock.asset_name
-#         email_subject = f"New Stock Added: {symbol}"
-#         email_message = f"""
-# A new stock has been added to the database:
+        #         # Send email notification
+        #         company_name = stock.asset_name
+        #         email_subject = f"New Stock Added: {symbol}"
+        #         email_message = f"""
+        # A new stock has been added to the database:
 
-# Ticker: {symbol}
-# Name: {company_name}
-# Exchange: {stock.exchange}
+        # Ticker: {symbol}
+        # Name: {company_name}
+        # Exchange: {stock.exchange}
 
-# Initiate the model training process for this stock.
-# Change the status to 'ACTIVE' when ready.
-# """
-#         send_email_notification(email_subject, email_message)
+        # Initiate the model training process for this stock.
+        # Change the status to 'ACTIVE' when ready.
+        # """
+        #         send_email_notification(email_subject, email_message)
 
         db.add(stock)
         db.commit()
@@ -99,8 +99,11 @@ def update_all_stock_risk_scores(db: Session) -> None:
     for stock in stocks:
         try:
             # Get risk score using the analyzer and update it
+            print(f"Updating risk score for {stock.ticker_symbol}...")
             analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
-            analyser.get_risk_score_and_update()
+            analyser.calculate_overall_risk()
+            print(f"Risk score for {stock.ticker_symbol} updated to {stock.risk_score}")
+            time.sleep(30)  # Pause for 30 seconds to respect API rate limits
         except Exception as e:
             # Log error but continue processing other stocks
             print(f"Error updating risk score for {stock.ticker_symbol}: {str(e)}")
