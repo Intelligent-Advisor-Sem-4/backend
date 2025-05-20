@@ -12,6 +12,10 @@ import json
 import traceback
 from dotenv import load_dotenv
 
+from llm.transaction_categorization_agent import generate_transaction_prompt
+from services.llm.llm import generate_content_with_llm, LLMProvider, GeminiModel
+from services.utils import parse_llm_json_response
+
 load_dotenv()
 
 from db.dbConnect import get_db
@@ -96,7 +100,13 @@ async def get_budget_report(user_id: str):
 @router.get("/categorize-transaction")
 async def categorize_transaction(description: str, amount: float, type: str):
     """Endpoint 3: Categorize a new transaction"""
-    res = sub_llm.getTransactionCategories(description, amount, type)
+    # res = sub_llm.getTransactionCategories(description, amount, type)
+
+    prompt = generate_transaction_prompt(description, amount, type)
+    geminiResponse = generate_content_with_llm(prompt=prompt, llm_provider=LLMProvider.GEMINI,
+                                               gemini_model=GeminiModel.FLASH_LITE)
+    res = parse_llm_json_response(geminiResponse)
+
     print(res)
     return res
 
