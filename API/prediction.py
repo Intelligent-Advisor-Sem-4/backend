@@ -1,14 +1,12 @@
-from fastapi import FastAPI, HTTPException, APIRouter
-from fastapi.concurrency import run_in_threadpool
+from fastapi import HTTPException, APIRouter
 import pandas as pd
-from pydantic import BaseModel
-from ml_lib.stock_predictor import getStockData, predict,trainer
-from ml_lib.stock_predictorV2 import predictV2
-from ml_lib.controllers import get_stock_options, get_stock_history, get_predictions, getPredictedPricesFromDB, get_model_details
-from classes.prediction import InData, getstockhist, getpredictprice, ModelDetails,trainrequestdata
+from ml_lib.stock_predictor import getStockData, predict, trainer
+from ml_lib.controllers import get_stock_options, get_stock_history, get_predictions, getPredictedPricesFromDB, \
+    get_model_details
+from classes.prediction import InData, getstockhist, getpredictprice, ModelDetails, trainrequestdata
 
-app = FastAPI()
-router = APIRouter()
+router = APIRouter(tags=['Prediction'])
+
 
 # @router.post("/train_model")
 # async def trainsymbol(data:trainrequestdata):
@@ -18,7 +16,6 @@ router = APIRouter()
 
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-        
 
 
 @router.get("/get-active-symbols")
@@ -30,6 +27,7 @@ async def getallsymbols():
         return {"symbols": symbols}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching active symbols: {str(e)}")
+
 
 @router.post("/get-forward-prices")
 async def get_stock_data2(data: getstockhist):
@@ -52,10 +50,12 @@ async def get_stock_data2(data: getstockhist):
                 "price": float(row['Close']),
                 "volume": float(row['Volume'])
             })
-        output = {"ticker": data_res[3], "currentPrice": data_res[1], "priceChange": data_res[2], "history": history_list}
+        output = {"ticker": data_res[3], "currentPrice": data_res[1], "priceChange": data_res[2],
+                  "history": history_list}
         return output
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching forward prices: {str(e)}")
+
 
 @router.post("/get-predicted-prices")
 async def getpredictedpricesfromDB(data: InData):
@@ -67,6 +67,7 @@ async def getpredictedpricesfromDB(data: InData):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching predicted prices: {str(e)}")
 
+
 @router.post("/get-stock-history")
 async def get_stock_data1(data: getstockhist):
     try:
@@ -76,6 +77,7 @@ async def get_stock_data1(data: getstockhist):
         return stock_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stock history: {str(e)}")
+
 
 @router.post("/V2/get-predicted-prices")
 async def get_predicted_price(data: getpredictprice):
@@ -87,6 +89,7 @@ async def get_predicted_price(data: getpredictprice):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching predicted prices (V2): {str(e)}")
 
+
 @router.post("/get_model_details")
 async def get_model_detail(data: ModelDetails):
     try:
@@ -96,4 +99,3 @@ async def get_model_detail(data: ModelDetails):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching model details: {str(e)}")
-
