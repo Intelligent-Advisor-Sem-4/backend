@@ -75,8 +75,19 @@ def calculate_risk_scores(volatility, beta, rsi, volume_change, debt_to_equity, 
     # Calculate individual risk scores (0-10 scale)
     volatility_score = min(10.0, volatility / 5)  # Higher volatility = higher risk
     beta_score = min(10.0, abs(beta) * 3) if beta is not None else 5  # Higher absolute beta = higher risk
-    rsi_risk = min(10.0, abs(rsi - 50) / 5)  # Extreme RSI = higher risk
-    volume_score = min(10.0, abs(volume_change) / 10) if volume_change is not None else 5  # Default to 5 if None
+    if rsi > 50:
+        rsi_risk = min(10.0, (rsi - 50) / 5)  # 0-10 scale for 50-100
+    else:
+        rsi_risk = min(10.0, (50 - rsi) / 5)  # 0-10 scale for 0-50
+
+    if volume_change is not None:
+        volume_magnitude = abs(volume_change) / 10
+        # Higher weight for increased volume (potential trend reversal)
+        volume_direction_factor = 1.2 if volume_change > 0 else 0.8
+        volume_score = min(10.0, volume_magnitude * volume_direction_factor)
+    else:
+        volume_score = 5
+
     debt_risk = min(10.0, debt_to_equity / 100) if debt_to_equity is not None else 5  # Higher debt = higher risk
 
     # Non-linear EPS risk scoring
