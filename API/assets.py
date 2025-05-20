@@ -1,9 +1,9 @@
 from typing import List, Union, Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends, status
+from fastapi import APIRouter, HTTPException, Query, Depends, status,BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
+from ml_lib.stock_predictor import getStockData, predict,trainer
 from classes.Asset import Asset, AssetFastInfo, StockResponse
 from classes.Stock import CreateStockResponse
 from classes.ScreenerQueries import ScreenerType, ScreenerResponseMinimal
@@ -63,7 +63,7 @@ async def get_screener_types():
 
 
 @router.post('/create-stock', response_model=CreateStockResponse, status_code=status.HTTP_201_CREATED)
-def api_create_stock(ticker: str, db: Session = Depends(get_db)):
+def api_create_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Create a new stock entry in the database.
 
@@ -78,7 +78,9 @@ def api_create_stock(ticker: str, db: Session = Depends(get_db)):
         HTTPException: If stock already exists or data can't be retrieved
     """
     try:
+        
         stock = create_stock(db, ticker)
+        background_tasks.add_task(trainer, ticker)
         return CreateStockResponse(
             stock_id=stock.stock_id,
             ticker_symbol=stock.ticker_symbol,

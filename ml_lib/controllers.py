@@ -240,9 +240,9 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
                 .all())
             print("point 7 pass")
             if len(predictions) < 7:
-                if available_date >= ending_date:
+                # if available_date >= ending_date:
                     try:
-                        predict(ticker_symbol, ending_date)
+                        predict(ticker_symbol, last_date)
                     except Exception as e:
                         return {"error": f"An error occurred while predicting: {str(e)}"}
                     predictions = (
@@ -257,9 +257,9 @@ def get_predictions(ticker_symbol,starting_date, ending_date):
                         .all()
                     )
                     print("point 8 pass")
-                elif(len(predictions)==0):
-                    print(f"Please provide a date by or earlier than {available_date}.")
-                    return {"error": f"Please provide a date by or earlier than {available_date}."}
+                # elif(len(predictions)==0):
+                #     print(f"Please provide a date by or earlier than {available_date}.")
+                #     return {"error": f"Please provide a date by or earlier than {available_date}."}
                     
 
             # Format the predictions into a list of dictionaries

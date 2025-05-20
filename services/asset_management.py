@@ -39,24 +39,32 @@ def create_stock(db: Session, symbol: str) -> Stock:
             status=AssetStatus.PENDING,
         )
 
-        # Send email notification
-        company_name = stock.asset_name
-        email_subject = f"New Stock Added: {symbol}"
-        email_message = f"""
-A new stock has been added to the database:
+#         # Send email notification
+#         company_name = stock.asset_name
+#         email_subject = f"New Stock Added: {symbol}"
+#         email_message = f"""
+# A new stock has been added to the database:
 
-Ticker: {symbol}
-Name: {company_name}
-Exchange: {stock.exchange}
+# Ticker: {symbol}
+# Name: {company_name}
+# Exchange: {stock.exchange}
 
-Initiate the model training process for this stock.
-Change the status to 'ACTIVE' when ready.
-"""
-        send_email_notification(email_subject, email_message)
+# Initiate the model training process for this stock.
+# Change the status to 'ACTIVE' when ready.
+# """
+#         send_email_notification(email_subject, email_message)
 
         db.add(stock)
         db.commit()
         db.refresh(stock)
+
+        # Calculate initial risk score for the newly added stock
+        try:
+            analyser = RiskAnalysis(ticker=symbol, db=db, db_stock=stock)
+            analyser.get_risk_score_and_update()
+        except Exception as e:
+            print(f"Error calculating initial risk score for {symbol}: {str(e)}")
+
         return stock
 
     except Exception as e:
@@ -84,22 +92,34 @@ def get_all_stocks(db: Session) -> list[Stock]:
     return db.query(Stock).all()
 
 
+def update_all_stock_risk_scores(db: Session) -> None:
+    """Update risk scores for all stocks in the database."""
+    stocks = db.query(Stock).all()
+
+    for stock in stocks:
+        try:
+            # Get risk score using the analyzer and update it
+            analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
+            analyser.get_risk_score_and_update()
+        except Exception as e:
+            # Log error but continue processing other stocks
+            print(f"Error updating risk score for {stock.ticker_symbol}: {str(e)}")
+
+
 def get_db_stocks(db: Session, offset: int = 0, limit: int = 10) -> list[StockResponse]:
-    stocks = db.query(Stock).offset(offset).limit(limit).all()
+    # Order by updated_at in descending order (most recent first)
+    stocks = db.query(Stock).order_by(Stock.updated_at.desc()).offset(offset).limit(limit).all()
 
     result = []
     for stock in stocks:
-        # Get risk score using the analyzer
-        analyser = RiskAnalysis(ticker=str(stock.ticker_symbol), db=db, db_stock=stock)
-        risk_update = analyser.get_risk_score_and_update()
-
-        # Create response model using the RiskScoreUpdate object
+        # Use existing risk score from DB instead of recalculating
+        # The daily scheduled job will keep these scores updated
         result.append(
             StockResponse(
                 stock_id=int(stock.stock_id if stock.stock_id else 0),
                 ticker_symbol=str(stock.ticker_symbol),
                 asset_name=str(stock.asset_name) if stock.asset_name else None,
-                risk_score=float(risk_update.risk_score) if risk_update.risk_score else None,
+                risk_score=float(stock.risk_score) if stock.risk_score else None,
                 risk_score_updated=stock.risk_score_updated.isoformat() if stock.risk_score_updated else None,
                 status=AssetStatus(stock.status) if stock.status else None,  # Convert to AssetStatus enum
                 currency=str(stock.currency) if stock.currency else None,

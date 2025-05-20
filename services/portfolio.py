@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 import pandas as pd
-from fastapi import HTTPException
+from fastapi import HTTPException,status
 from pypfopt.expected_returns import mean_historical_return,capm_return,ema_historical_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
@@ -41,10 +41,12 @@ def get_mu(price_data, tickers, method=MU_METHOD):
         raise ValueError(f"Unknown MU_METHOD: {method}")
 
 
-def run_markowitz_optimization(price_data, tickers):
+
+def run_markowitz_optimization(price_data, tickers, risk_free_rate=0.02):
     
     # Fetch the price data for the tickers given as input and exclude the benchmark ticker
     prices = price_data[tickers]
+    
     mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
     ef = EfficientFrontier(mu, cov)
@@ -59,7 +61,7 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     prices = price_data[tickers]
     mu = get_mu(price_data, tickers, MU_METHOD)
     cov = sample_cov(prices)
-    
+
     ef = EfficientFrontier(mu, cov)
 
     ef_clone = copy.deepcopy(ef)
@@ -80,7 +82,7 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     # Safety check: ensure the volatility is still feasible
     if target_volatility < min_vol or target_volatility > max_vol:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Target volatility {target_volatility:.3f} is outside feasible range ({min_vol:.3f} - {max_vol:.3f})"
         )
 
@@ -89,7 +91,7 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
 
     cleaned_weights = ef_final.clean_weights()
     perf = ef_final.portfolio_performance(verbose=False, risk_free_rate=RISK_FREE_RATE)
-    
+
     return cleaned_weights, perf, mu, cov
 
 

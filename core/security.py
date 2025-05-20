@@ -2,11 +2,14 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import jwt
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from classes.security import Token, TokenData, User, UserInDB
 from core.password import verify_password
 from db.dbConnect import get_db
+
+load_dotenv()
 
 router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -32,8 +35,6 @@ def authenticate_user(cursor, username: str, password: str):
     return user
 
 
-
-
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=100000))
@@ -51,6 +52,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 # Dependency to get the current user
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db=Depends(get_db)):
