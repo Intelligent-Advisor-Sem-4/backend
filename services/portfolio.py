@@ -1,33 +1,50 @@
 import numpy as np
 import copy
+import pandas as pd
 from fastapi import HTTPException,status
-from pypfopt.expected_returns import mean_historical_return,capm_return
+from pypfopt.expected_returns import mean_historical_return,capm_return,ema_historical_return
 from pypfopt.risk_models import sample_cov
 from pypfopt.efficient_frontier import EfficientFrontier
-from utils.finance import fetch_price_data
-from utils.portfolioconfig import MU_METHOD, BENCHMARK_TICKER
+from utils.finance import fetch_price_data, fetch_tbill_data
+from utils.portfolioconfig import MU_METHOD, BENCHMARK_TICKER,RISK_FREE_RATE,NUMBER_OF_SIMULATIONS
 from classes.profile import Input
 
 
+def get_risk_free_rate():
+    """
+    Fetch the risk-free rate from a reliable source.
+    In this case, we are using the 10-year treasury yield as a proxy.
+    """
+    tnx_data = fetch_tbill_data()
+    if tnx_data.empty:
+        raise ValueError("No data was fetched for the 10-year treasury yield.")
+    
+    rate_percent = tnx_data.iloc[-1]
+    risk_free_rate = rate_percent / 100  # Convert to decimal
+    return risk_free_rate
+
 # Get the mu value using the MU_METHOD specified in the config
-def get_mu(price_data,tickers, method=MU_METHOD):
+def get_mu(price_data, tickers, method=MU_METHOD):
 
     # Get the prices for the tickers given as input and exclude the benchmark ticker
     # This is to ensure that the benchmark ticker is not included in the mu calculation
     ticker_prices = price_data[tickers]
-    market_prices = price_data[BENCHMARK_TICKER]
+    market_prices = price_data[BENCHMARK_TICKER].to_frame(name="mkt")
+    risk_free_rate = get_risk_free_rate()
 
     if method == 'historical_yearly_return':
+        print("mean_historical_return")
         return mean_historical_return(ticker_prices)
+        
     elif method == 'capm':
-        return capm_return(ticker_prices,market_prices,risk_free_rate=0.02)
+        print("capm")
+        return capm_return(ticker_prices,market_prices,risk_free_rate=get_risk_free_rate())
+        
     else:
         raise ValueError(f"Unknown MU_METHOD: {method}")
 
-#Calculate the risk-free rate using the 10-year treasury yield
 
-
-def run_markowitz_optimization(price_data, tickers, risk_free_rate=0.02):
+def run_markowitz_optimization(price_data, tickers):
 
     # Fetch the price data for the tickers given as input and exclude the benchmark ticker
     prices = price_data[tickers]
@@ -58,6 +75,8 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     # Compute max volatility using max Sharpe
     ef_clone.max_sharpe()
     _, max_vol, _ = ef_clone.portfolio_performance()
+    #max_vol = max(np.std(price_data[ticker].pct_change().dropna()) * np.sqrt(252) for ticker in tickers)
+
 
     # Dynamically map user's risk score to volatility
     target_volatility = min_vol + (risk_score_percent / 100) * (max_vol - min_vol)
@@ -73,7 +92,7 @@ def run_custom_risk_optimization(price_data, tickers, risk_score_percent):
     ef_final.efficient_risk(target_volatility)
 
     cleaned_weights = ef_final.clean_weights()
-    perf = ef_final.portfolio_performance(verbose=False)
+    perf = ef_final.portfolio_performance(verbose=False, risk_free_rate=RISK_FREE_RATE)
 
     return cleaned_weights, perf, mu, cov
 
@@ -107,8 +126,9 @@ def simulate_monte_carlo_for_weights(mu, cov, weights_dict, investment_amount, t
 
 def build_portfolio_response(request: Input):
     all_tickers = request.tickers + ["SPY"]
-    price_data = fetch_price_data(all_tickers, request.start_date, request.end_date)
 
+    price_data = fetch_price_data(all_tickers, request.start_date, request.end_date)
+    
     if request.use_risk_score and request.risk_score_percent is not None:
         weights, (exp_return, volatility, sharpe), mu, cov = run_custom_risk_optimization(
             price_data, request.tickers, request.risk_score_percent
@@ -124,7 +144,8 @@ def build_portfolio_response(request: Input):
     monte_carlo_result = simulate_monte_carlo_for_weights(
         mu, cov, weights,
         request.investment_amount, request.target_amount,
-        request.years
+        request.years,
+        num_simulations=NUMBER_OF_SIMULATIONS
     )
 
     return {
@@ -136,3 +157,5 @@ def build_portfolio_response(request: Input):
         "goal": f"${request.investment_amount:,.2f} → ${request.target_amount:,.2f} in {request.years} year(s)",
         "monte_carlo_projection": monte_carlo_result
     }
+
+
