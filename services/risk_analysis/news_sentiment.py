@@ -66,7 +66,7 @@ class NewsSentimentService:
             "risk_rationale": ["No recent news available for analysis."],
             "news_highlights": [],
             "risk_score": 0,
-            "updated_at": datetime.now(),
+            "updated_at": datetime.now().isoformat(),
         }
 
         if not articles:
