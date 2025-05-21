@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 
 from pydantic import ValidationError
@@ -137,7 +137,6 @@ class NewsSentimentService:
 
                     # Always update these fields
                     existing_analysis.response_json = sentiment_model.model_dump()
-                    existing_analysis.updated_at = datetime.now()
                 else:
                     # Create new record
                     news_analysis = NewsRiskAnalysis(
@@ -149,7 +148,6 @@ class NewsSentimentService:
                         suggested_action=sentiment_model.suggested_action,
                         risk_score=sentiment_model.risk_score,
                         created_at=datetime.now(),
-                        updated_at=datetime.now()
                     )
                     self.db.add(news_analysis)
 
@@ -189,7 +187,6 @@ class NewsSentimentService:
                 existing_analysis.stability_label = fallback_model.stability_label
                 existing_analysis.customer_suitability = fallback_model.customer_suitability
                 existing_analysis.suggested_action = fallback_model.suggested_action
-                existing_analysis.updated_at = datetime.now()
                 existing_analysis.risk_score = fallback_model.risk_score
             else:
                 news_analysis = NewsRiskAnalysis(
@@ -201,7 +198,6 @@ class NewsSentimentService:
                     suggested_action=fallback_model.suggested_action,
                     risk_score=fallback_model.risk_score,
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
                 )
                 self.db.add(news_analysis)
 
@@ -296,7 +292,7 @@ class NewsSentimentService:
         news_sentiment = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
         # If no sentiment exists, or it's older than 6 hours, fetch new sentiment
-        if not news_sentiment or news_sentiment.updated_at < datetime.now() - timedelta(hours=6):
+        if not news_sentiment or news_sentiment.updated_at < datetime.now(timezone.utc) - timedelta(hours=6):
             print("No sentiment found or found older sentiment")
             articles = self.get_news_articles(limit=10)
             return self.generate_news_sentiment(articles, use_llm=use_llm)
