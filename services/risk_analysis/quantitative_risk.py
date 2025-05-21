@@ -1,6 +1,6 @@
 import decimal
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 import numpy as np
@@ -131,7 +131,6 @@ class QuantitativeRiskService:
                 existing_analysis.volume_change = float(volume_change) if volume_change is not None else None
                 existing_analysis.debt_to_equity = float(debt_to_equity) if debt_to_equity is not None else None
                 existing_analysis.eps = float(eps) if eps is not None else None
-                existing_analysis.updated_at = datetime.now()
                 # Store the risk analysis response if provided
                 if risk_analysis is not None:
                     existing_analysis.response = risk_analysis
@@ -146,7 +145,6 @@ class QuantitativeRiskService:
                     debt_to_equity=to_python_type(debt_to_equity),
                     stock_id=self.stock.stock_id,
                     created_at=datetime.now(),
-                    updated_at=datetime.now(),
                     eps=to_python_type(eps),
                     response=risk_analysis if risk_analysis is not None else None
                 )
@@ -324,7 +322,7 @@ class QuantitativeRiskService:
 
         quantitative_analysis = self.db.query(QuantitativeRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
 
-        if quantitative_analysis and quantitative_analysis.updated_at > datetime.now() - timedelta(days=1):
+        if quantitative_analysis and quantitative_analysis.updated_at > datetime.now(timezone.utc) - timedelta(days=1):
             print("Existing metric exists")
 
             # Check if a valid response exists in the database

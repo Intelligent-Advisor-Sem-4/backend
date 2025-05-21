@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 
 import yfinance as yf
@@ -103,7 +103,7 @@ class RiskAnalysis:
         # Update the stock's risk score in the database
         if self.stock:
             self.stock.risk_score = overall_score
-            self.stock.risk_score_updated = datetime.now()
+            self.stock.risk_score_updated = datetime.now(timezone.utc)
             self.db.commit()
 
         # Return OverallRiskResponse
@@ -153,7 +153,7 @@ class RiskAnalysis:
         if (self.stock is not None and
                 self.stock.risk_score is not None and
                 self.stock.risk_score_updated and
-                datetime.now() - self.stock.risk_score_updated < timedelta(days=1)):
+                datetime.now(timezone.utc) - self.stock.risk_score_updated < timedelta(days=1)):
             print('Returning cached risk score for', self.ticker)
             return {
                 "symbol": self.ticker,
@@ -176,7 +176,7 @@ class RiskAnalysis:
             # Update the stock's risk score in the database
             if self.stock:
                 self.stock.risk_score = risk_score
-                self.stock.risk_score_updated = datetime.now()
+                self.stock.risk_score_updated = datetime.now(timezone.utc)
                 self.db.commit()
                 self.db.refresh(self.stock)
 
