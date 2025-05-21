@@ -257,7 +257,7 @@ class NewsSentimentService:
         6. **suggested_action** (string): One of ["Monitor", "Flag for Review", "Review", "Flag for Removal", "Immediate Action Required"]
         7. **risk_rationale** (array of strings): 2-3 concise bullet points justifying the score, label, and action using news-derived evidence.
         8. **news_highlights** (array of strings, optional): If applicable, list key headline-worthy excerpts that triggered concern or affected scoring.
-        9. **risk_score** Derived risk score Float (0-10) based on stability score and other risk factors.
+        9. **risk_score** (numeric): A score (Float) from 0 (no risk) to 10 (extreme risk). This should be derived based on the identified risk factors and reflect the overall risk level — **higher values indicate higher risk**.
 
         Ensure output is valid JSON and optimized for downstream explainability modules.
         """
