@@ -115,7 +115,7 @@ async def categorize_transaction(description: str, amount: float, type: str):
 async def chat(prompt: str):
     """Endpoint 4: Chat with the LLM"""
     print(prompt) 
-    prompt = prompt+" Note- Assume that you are a financial advisor. Only answer the questions related to finance. Other questions should be neglected"
+    prompt = prompt+" Note- Assume that you are a financial advisor. Only answer the questions related to finance. Other questions should be neglected. Please provide a small summary of the answer."
     geminiResponse = generate_content_with_llm(prompt=prompt, llm_provider=LLMProvider.GEMINI,
                                                gemini_model=GeminiModel.FLASH_LITE)
     return {
