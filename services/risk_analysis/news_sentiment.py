@@ -80,7 +80,7 @@ class NewsSentimentService:
             existing_analysis = self.db.query(NewsRiskAnalysis).filter_by(stock_id=self.stock.stock_id).first()
             if existing_analysis:
                 try:
-                    return SentimentAnalysisResponse(**existing_analysis.response_json)
+                    return SentimentAnalysisResponse(**existing_analysis.response_json, updated_at=existing_analysis.updated_at.isoformat())
                 except ValidationError:
                     pass  # If validation fails, continue to return None
             return None  # Return None if Llm is disabled and no valid database entry exists
@@ -276,7 +276,7 @@ class NewsSentimentService:
             if news_sentiment_not_Llm:
                 try:
                     print("Returning existing sentiment report")
-                    return SentimentAnalysisResponse(**news_sentiment_not_Llm.response_json)
+                    return SentimentAnalysisResponse(**news_sentiment_not_Llm.response_json, updated_at=news_sentiment_not_Llm.updated_at.isoformat())
                 except ValidationError:
                     print("Invalid sentiment data in database")
             return None
@@ -299,7 +299,7 @@ class NewsSentimentService:
 
         try:
             print("Returning existing sentiment report")
-            return SentimentAnalysisResponse(**news_sentiment.response_json)
+            return SentimentAnalysisResponse(**news_sentiment.response_json, updated_at=news_sentiment.updated_at.isoformat())
         except ValidationError:
             # If the stored JSON is invalid, generate a new sentiment
             articles = self.get_news_articles(limit=10)
