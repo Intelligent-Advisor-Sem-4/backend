@@ -33,15 +33,18 @@ def fetch_tbill_data():
     return returns
 
 # def get_risk_free_rate():
-#     # Placeholder for actual risk-free rate calculation
-#     # In a real-world scenario, this would fetch the current risk-free rate from a reliable source
+#     """
+#     Fetch the risk-free rate from a reliable source.
+#     In this case, we are using the 10-year treasury yield as a proxy.
+#     """
 #     tnx_data = fetch_tbill_data()
 #     if tnx_data.empty:
 #         raise ValueError("No data was fetched for the 10-year treasury yield.")
+    
 #     rate_percent = tnx_data.iloc[-1]
-#     risk_free_rate = rate_percent/ 100 # Convert to decimal
-#     print(f"10-Year Treasury Yield: {risk_free_rate:.4f}")
-#     return risk_free_rate 
+#     risk_free_rate = rate_percent / 100  # Convert to decimal
+#     print(f"Risk-free rate (10-year treasury yield): {risk_free_rate:.4f}")
+#     return risk_free_rate
 
 # # Get the mu value using the MU_METHOD specified in the config
 # def get_mu(price_data, tickers, method=MU_METHOD):
