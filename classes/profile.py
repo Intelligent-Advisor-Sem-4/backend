@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 
 class Input(BaseModel):
     tickers: List[str]
-    start_date: str = '2020-01-01'  # Default to 30 days ago
-    end_date: str = '2024-01-01'  # Default to today
+    start_date: str = '2021-01-01'  # Default to 30 days ago
+    end_date: str = '2025-05-01'  # Default to today
     num_portfolios: int = 10000
     investment_amount: float
     target_amount: float
