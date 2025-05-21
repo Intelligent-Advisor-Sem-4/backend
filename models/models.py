@@ -72,7 +72,7 @@ class Stock(Base):
     first_data_point_date = Column(Date, nullable=True)
     last_data_point_date = Column(Date, nullable=True)
     risk_score = Column(Numeric(10, 2), nullable=True)
-    risk_score_updated = Column(DateTime, nullable=True)
+    risk_score_updated = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -150,29 +150,6 @@ class StockPrediction(Base):
         return f"<StockPrediction(id={self.prediction_id}, date='{self.predicted_date}', price={self.predicted_price})>"
 
 
-class RiskModel(Base):
-    __tablename__ = 'risk_models'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    version = Column(String)
-    description = Column(String)
-    parameters = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_updated = Column(DateTime, onupdate=datetime.utcnow)
-
-
-class ExplainabilityReport(Base):
-    __tablename__ = 'explainability_reports'
-
-    id = Column(Integer, primary_key=True)
-    transaction_id = Column(Integer)
-    model_id = Column(Integer)
-    report_data = Column(JSON)  # Stores SHAP values, LIME explanations, etc.
-    generated_at = Column(DateTime, default=datetime.utcnow)
-    explanation_type = Column(String)  # e.g., "SHAP", "LIME", "Gemini"
-
-
 class NewsRiskAnalysis(Base):
     __tablename__ = "news_risk_analysis"
 
@@ -184,8 +161,8 @@ class NewsRiskAnalysis(Base):
     stability_label = Column(String(50), nullable=True)
     customer_suitability = Column(String(50), nullable=True)
     suggested_action = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     risk_score = Column(Numeric(10, 2), nullable=True)
 
     stock = relationship("Stock", back_populates="news_risk_analysis")
@@ -205,8 +182,8 @@ class QuantitativeRiskAnalysis(Base):
     debt_to_equity = Column(Numeric(10, 4), nullable=True)
     eps = Column(Numeric(10, 4), nullable=True)
     stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     response = Column(JSONB, nullable=True)
 
