@@ -162,7 +162,7 @@ class NewsRiskAnalysis(Base):
     customer_suitability = Column(String(50), nullable=True)
     suggested_action = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), default=func.now())
     risk_score = Column(Numeric(10, 2), nullable=True)
 
     stock = relationship("Stock", back_populates="news_risk_analysis")
@@ -183,7 +183,7 @@ class QuantitativeRiskAnalysis(Base):
     eps = Column(Numeric(10, 4), nullable=True)
     stock_id = Column(Integer, ForeignKey("stocks.stock_id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), default=func.now())
 
     response = Column(JSONB, nullable=True)
 
