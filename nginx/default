@@ -1,0 +1,82 @@
+# HTTP server block for redirecting to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api-intellifinance.shancloudservice.com;
+
+    # Redirect all HTTP traffic to HTTPS
+    return 301 https://$server_name$request_uri;
+
+    # Access and error logs
+    access_log /var/log/nginx/access.log json_combined;
+    error_log /var/log/nginx/error.log warn;
+}
+
+# HTTPS server block for FastAPI
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name api-intellifinance.shancloudservice.com;
+
+    # SSL configuration (managed by Certbot)
+    ssl_certificate /etc/letsencrypt/live/api-intellifinance.shancloudservice.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api-intellifinance.shancloudservice.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Access and error logs
+    access_log /var/log/nginx/access.log json_combined;
+    error_log /var/log/nginx/error.log warn;
+
+    # General API rate limiting
+    limit_req zone=api_limit burst=150 nodelay;
+
+    # Proxy to FastAPI application
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Strict rate limiting for login endpoint
+    location /auth/login {
+        limit_req zone=login_limit burst=15 nodelay;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ ^/risk-analysis/[^/]+/stream$ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_request_buffering off;
+        chunked_transfer_encoding on;
+    }
+
+
+    # Health check endpoint (no rate limiting)
+    location /health {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Deny access to sensitive files (e.g., .env, .git)
+    location ~ /\. {
+        deny all;
+    }
+}
